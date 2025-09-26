@@ -5,6 +5,10 @@ RUN apt-get update && apt-get install -y \
     git unzip libzip-dev libpng-dev libonig-dev libxml2-dev \
     && docker-php-ext-install pdo pdo_mysql zip mbstring exif pcntl bcmath gd
 
+# Install gRPC (required by google/cloud-firestore)
+RUN pecl install grpc \
+    && docker-php-ext-enable grpc
+
 # Enable Apache rewrite module
 RUN a2enmod rewrite
 
