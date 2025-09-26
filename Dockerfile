@@ -21,17 +21,17 @@ WORKDIR /var/www/html
 # Copy app files
 COPY . .
 
-# Install dependencies
+# Install dependencies (only production deps)
 RUN composer install --no-dev --optimize-autoloader
 
-# Optimize Laravel caches
-RUN php artisan key:generate \
-    && php artisan config:cache \
+# Don’t run key:generate here (Render provides APP_KEY in env)
+# Only cache config/routes/views
+RUN php artisan config:cache \
     && php artisan route:cache \
     && php artisan view:cache
 
-# Expose port
+# Expose port (Render maps PORT env automatically)
 EXPOSE 10000
 
-# Start Laravel server
-CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=10000"]
+# Start Laravel server (use Render's PORT)
+CMD ["sh", "-c", "php artisan serve --host=0.0.0.0 --port=${PORT:-10000}"]
