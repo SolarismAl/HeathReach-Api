@@ -24,14 +24,22 @@ COPY . .
 # Install dependencies (only production deps)
 RUN composer install --no-dev --optimize-autoloader
 
-# Don’t run key:generate here (Render provides APP_KEY in env)
-# Only cache config/routes/views
-RUN php artisan config:cache \
+# Optimize Laravel (don’t run key:generate here, Render provides APP_KEY)
+RUN php artisan config:clear \
+    && php artisan config:cache \
     && php artisan route:cache \
     && php artisan view:cache
 
-# Expose port (Render maps PORT env automatically)
-EXPOSE 10000
+# Point Apache document root to Laravel's public directory
+RUN sed -i 's|/var/www/html|/var/www/html/public|g' /etc/apache2/sites-available/000-default.conf \
+    && sed -i 's|/var/www/|/var/www/html/public|g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
 
-# Start Laravel server (use Render's PORT)
-CMD ["sh", "-c", "php artisan serve --host=0.0.0.0 --port=${PORT:-10000}"]
+# Fix permissions for Laravel
+RUN chown -R www-data:www-data /var/www/html \
+    && chmod -R 755 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Expose port 8080 (Apache default inside container)
+EXPOSE 8080
+
+# Start Apache in foreground
+CMD ["apache2-foreground"]
