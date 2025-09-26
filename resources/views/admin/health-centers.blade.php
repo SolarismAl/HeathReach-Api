@@ -4,6 +4,23 @@
 @section('page-title', 'Health Centers Management')
 
 @section('content')
+
+<script>
+console.log('=== ADMIN HEALTH CENTERS BLADE TEMPLATE ===');
+console.log('Health Centers Data:', @json($healthCenters));
+console.log('Health Centers Count:', {{ count($healthCenters) }});
+console.log('Health Centers Keys:', Object.keys(@json($healthCenters)));
+
+@foreach($healthCenters as $centerId => $center)
+console.log('Admin - Health Center ID: {{ $centerId }}');
+console.log('Admin - Health Center Data:', @json($center));
+console.log('Admin - Health Center Name:', '{{ $center['name'] ?? 'Unknown' }}');
+console.log('Admin - Health Center Services:', @json($center['services'] ?? []));
+console.log('Admin - Services Count for {{ $center['name'] ?? 'Unknown' }}:', {{ isset($center['services']) && is_array($center['services']) ? count($center['services']) : 0 }});
+@endforeach
+
+console.log('=== END ADMIN HEALTH CENTERS BLADE ===');
+</script>
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">

@@ -4,6 +4,77 @@
 @section('page-title', 'Services Management')
 
 @section('content')
+
+<script>
+console.log('=== SERVICES BLADE TEMPLATE ===');
+console.log('Services Data:', @json($services));
+console.log('Services Count:', {{ count($services) }});
+console.log('Services Keys:', Object.keys(@json($services)));
+
+@if(isset($healthCenters))
+console.log('Health Centers Available:', @json($healthCenters));
+console.log('Health Centers Count:', {{ count($healthCenters ?? []) }});
+@endif
+
+@foreach($services as $serviceId => $service)
+console.log('Service ID: {{ $serviceId }}');
+console.log('Service Data:', @json($service));
+console.log('Service Name:', '{{ $service['name'] ?? 'Unknown' }}');
+console.log('Health Center ID:', '{{ $service['health_center_id'] ?? 'N/A' }}');
+@if(isset($healthCenters) && isset($service['health_center_id']) && isset($healthCenters[$service['health_center_id']]))
+console.log('Health Center Name:', '{{ $healthCenters[$service['health_center_id']]['name'] ?? 'Unknown' }}');
+@else
+console.log('Health Center Name:', 'Not Found');
+@endif
+console.log('Service Price:', {{ $service['price'] ?? 0 }});
+console.log('Service Duration:', {{ $service['duration'] ?? 0 }});
+console.log('Service Active:', {{ isset($service['is_active']) && $service['is_active'] ? 'true' : 'false' }});
+console.log('---');
+@endforeach
+
+// Group services by health center
+const servicesByCenter = {};
+@foreach($services as $serviceId => $service)
+const centerId = '{{ $service['health_center_id'] ?? 'unknown' }}';
+if (!servicesByCenter[centerId]) {
+    servicesByCenter[centerId] = [];
+}
+servicesByCenter[centerId].push({
+    id: '{{ $serviceId }}',
+    name: '{{ $service['name'] ?? 'Unknown' }}',
+    price: {{ $service['price'] ?? 0 }},
+    duration: {{ $service['duration'] ?? 0 }}
+});
+@endforeach
+
+console.log('Services Grouped by Health Center:', servicesByCenter);
+
+// Debug: Check for data inconsistencies
+console.log('=== DATA CONSISTENCY CHECK ===');
+@if(isset($healthCenters))
+@foreach($healthCenters as $centerId => $center)
+console.log('Health Center from Services Page:');
+console.log('  ID: {{ $centerId }}');
+console.log('  Name: {{ $center['name'] ?? 'N/A' }}');
+console.log('  Address: {{ $center['address'] ?? 'N/A' }}');
+console.log('  Email: {{ $center['email'] ?? 'N/A' }}');
+@endforeach
+@endif
+
+// Count services per health center
+const serviceCounts = {};
+@foreach($services as $serviceId => $service)
+const centerId = '{{ $service['health_center_id'] ?? 'unknown' }}';
+if (!serviceCounts[centerId]) {
+    serviceCounts[centerId] = 0;
+}
+serviceCounts[centerId]++;
+@endforeach
+
+console.log('Service Counts per Health Center:', serviceCounts);
+console.log('=== END DATA CONSISTENCY CHECK ===');
+console.log('=== END SERVICES BLADE ===');
+</script>
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">

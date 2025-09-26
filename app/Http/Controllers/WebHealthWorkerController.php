@@ -90,11 +90,27 @@ class WebHealthWorkerController extends Controller
 
     public function services()
     {
-        $user = session('user');
-        $services = $this->firestoreService->getCollection('services', [
-            'where' => [['health_center_id', '==', $user['health_center_id'] ?? '']]
-        ]);
-        return view('health-worker.services', compact('services'));
+        // Get all services (not filtered by user's health center for health worker view)
+        $services = $this->firestoreService->getCollection('services');
+        
+        // Get all health centers for reference
+        $healthCenters = $this->firestoreService->getCollection('health_centers');
+        
+        \Log::info('=== WEB SERVICES CONTROLLER ===');
+        \Log::info('Services loaded: ' . count($services));
+        \Log::info('Health Centers loaded: ' . count($healthCenters));
+        
+        foreach ($services as $serviceId => $service) {
+            $centerId = $service['health_center_id'] ?? 'N/A';
+            $centerName = 'Unknown';
+            if (isset($healthCenters[$centerId])) {
+                $centerName = $healthCenters[$centerId]['name'] ?? 'Unknown';
+            }
+            \Log::info("Service '{$service['name']}' (ID: {$serviceId}) -> Health Center: {$centerName} (ID: {$centerId})");
+        }
+        \Log::info('=== END WEB SERVICES CONTROLLER ===');
+        
+        return view('health-worker.services', compact('services', 'healthCenters'));
     }
 
     public function createService()
@@ -142,7 +158,70 @@ class WebHealthWorkerController extends Controller
 
     public function healthCenters()
     {
+        // Get all health centers
         $healthCenters = $this->firestoreService->getCollection('health_centers');
+        
+        // Get all services
+        $allServices = $this->firestoreService->getCollection('services');
+        
+        // Group services by health center ID
+        $servicesByCenter = [];
+        foreach ($allServices as $serviceId => $service) {
+            $centerId = $service['health_center_id'] ?? null;
+            if ($centerId) {
+                if (!isset($servicesByCenter[$centerId])) {
+                    $servicesByCenter[$centerId] = [];
+                }
+                $servicesByCenter[$centerId][] = $service;
+            }
+        }
+        
+        // Add services to each health center
+        foreach ($healthCenters as $centerId => &$center) {
+            $center['services'] = $servicesByCenter[$centerId] ?? [];
+        }
+        
+        \Log::info('=== WEB HEALTH CENTERS CONTROLLER ===');
+        \Log::info('Health Centers loaded: ' . count($healthCenters));
+        \Log::info('All Services loaded: ' . count($allServices));
+        
+        // Debug: Log raw health centers data
+        \Log::info('Raw Health Centers Data:');
+        foreach ($healthCenters as $centerId => $center) {
+            \Log::info("  Center ID: {$centerId}");
+            \Log::info("  Center Name: " . ($center['name'] ?? 'N/A'));
+            \Log::info("  Center Address: " . ($center['address'] ?? 'N/A'));
+            \Log::info("  Center Email: " . ($center['email'] ?? 'N/A'));
+        }
+        
+        // Debug: Log raw services data
+        \Log::info('Raw Services Data:');
+        foreach ($allServices as $serviceId => $service) {
+            \Log::info("  Service ID: {$serviceId}");
+            \Log::info("  Service Name: " . ($service['name'] ?? 'N/A'));
+            \Log::info("  Health Center ID: " . ($service['health_center_id'] ?? 'N/A'));
+            \Log::info("  Service Price: " . ($service['price'] ?? 'N/A'));
+        }
+        
+        // Debug: Log services grouped by center
+        \Log::info('Services Grouped by Center:');
+        foreach ($servicesByCenter as $centerId => $services) {
+            \Log::info("  Center ID: {$centerId} has " . count($services) . " services");
+            foreach ($services as $service) {
+                \Log::info("    - {$service['name']} (Price: $" . ($service['price'] ?? 'N/A') . ")");
+            }
+        }
+        
+        // Final result
+        foreach ($healthCenters as $centerId => $center) {
+            $servicesCount = count($center['services']);
+            \Log::info("FINAL: Health Center '{$center['name']}' (ID: {$centerId}) has {$servicesCount} services");
+            foreach ($center['services'] as $service) {
+                \Log::info("  - Service: {$service['name']} (Price: $" . ($service['price'] ?? 'N/A') . ")");
+            }
+        }
+        \Log::info('=== END WEB HEALTH CENTERS CONTROLLER ===');
+        
         return view('health-worker.health-centers', compact('healthCenters'));
     }
 

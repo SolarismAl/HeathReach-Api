@@ -4,6 +4,23 @@
 @section('page-title', 'Health Centers')
 
 @section('content')
+
+<script>
+console.log('=== HEALTH CENTERS BLADE TEMPLATE ===');
+console.log('Health Centers Data:', @json($healthCenters));
+console.log('Health Centers Count:', {{ count($healthCenters) }});
+console.log('Health Centers Keys:', Object.keys(@json($healthCenters)));
+
+@foreach($healthCenters as $centerId => $center)
+console.log('Health Center ID: {{ $centerId }}');
+console.log('Health Center Data:', @json($center));
+console.log('Health Center Name:', '{{ $center['name'] ?? 'Unknown' }}');
+console.log('Health Center Services:', @json($center['services'] ?? []));
+console.log('Services Count for {{ $center['name'] ?? 'Unknown' }}:', {{ isset($center['services']) && is_array($center['services']) ? count($center['services']) : 0 }});
+@endforeach
+
+console.log('=== END HEALTH CENTERS BLADE ===');
+</script>
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
@@ -49,16 +66,19 @@
                                         @endif
 
                                         <!-- Services Offered -->
-                                        @if(isset($center['services']) && is_array($center['services']))
+                                        @if(isset($center['services']) && is_array($center['services']) && count($center['services']) > 0)
                                             <div class="mb-3">
                                                 <h6 class="text-primary"><i class="fas fa-stethoscope me-1"></i>Services Offered</h6>
                                                 <div class="d-flex flex-wrap gap-1">
                                                     @foreach(array_slice($center['services'], 0, 3) as $service)
-                                                        <span class="badge bg-info">{{ $service }}</span>
+                                                        <span class="badge bg-info">{{ $service['name'] ?? 'Unknown Service' }}</span>
                                                     @endforeach
                                                     @if(count($center['services']) > 3)
                                                         <span class="badge bg-secondary">+{{ count($center['services']) - 3 }} more</span>
                                                     @endif
+                                                </div>
+                                                <div class="mt-2">
+                                                    <small class="text-muted">{{ count($center['services']) }} service{{ count($center['services']) !== 1 ? 's' : '' }} available</small>
                                                 </div>
                                             </div>
                                         @endif
@@ -137,12 +157,21 @@
                                                 </div>
                                             </div>
                                             
-                                            @if(isset($center['services']) && is_array($center['services']))
+                                            @if(isset($center['services']) && is_array($center['services']) && count($center['services']) > 0)
                                                 <hr>
-                                                <h6>Services Offered</h6>
+                                                <h6>Services Offered ({{ count($center['services']) }})</h6>
                                                 <div class="d-flex flex-wrap gap-2">
                                                     @foreach($center['services'] as $service)
-                                                        <span class="badge bg-info">{{ $service }}</span>
+                                                        <span class="badge bg-info">{{ $service['name'] ?? 'Unknown Service' }}</span>
+                                                    @endforeach
+                                                </div>
+                                                <div class="mt-2">
+                                                    @foreach($center['services'] as $service)
+                                                        <div class="small text-muted mb-1">
+                                                            <strong>{{ $service['name'] ?? 'Unknown' }}:</strong> 
+                                                            ₱{{ number_format($service['price'] ?? 0, 2) }} 
+                                                            ({{ $service['duration'] ?? 0 }} min)
+                                                        </div>
                                                     @endforeach
                                                 </div>
                                             @endif
@@ -214,7 +243,7 @@
         <div class="card stats-card-info">
             <div class="card-body text-center">
                 <i class="fas fa-stethoscope fa-2x mb-2"></i>
-                <h3>{{ collect($healthCenters)->sum(function($center) { return isset($center['services']) ? count($center['services']) : 0; }) }}</h3>
+                <h3>{{ collect($healthCenters)->sum(function($center) { return isset($center['services']) && is_array($center['services']) ? count($center['services']) : 0; }) }}</h3>
                 <p class="mb-0">Total Services</p>
             </div>
         </div>
