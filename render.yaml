@@ -1,14 +1,19 @@
 services:
   - type: web
-    name: laravel-app
-    runtime: docker
+    name: healthreach-api
+    env: docker
     plan: free
+    branch: master
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
     envVars:
       - key: APP_ENV
         value: production
-      - key: APP_DEBUG
-        value: false
       - key: APP_KEY
         generateValue: true
+      - key: APP_DEBUG
+        value: false
       - key: APP_URL
-        value: https://laravel-app.onrender.com
+        value: https://healthreach-api.onrender.com
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /run/secrets/firebase-service-account.json
