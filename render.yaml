@@ -17,3 +17,7 @@ services:
         value: https://healthreach-api.onrender.com
       - key: GOOGLE_APPLICATION_CREDENTIALS
         value: /run/secrets/firebase-service-account.json
+
+    secretFiles:
+      - name: firebase-service-account.json
+        mountPath: /run/secrets/firebase-service-account.json
