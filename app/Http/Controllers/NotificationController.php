@@ -37,8 +37,12 @@ class NotificationController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $userId = $request->input('firebase_uid');
-            $userRole = $request->input('user_role');
+            // Get user from middleware
+            $user = $request->get('user');
+            $userId = $user['user_id'] ?? $user['firebase_uid'] ?? null;
+            $userRole = $user['role'] ?? 'patient';
+            
+            \Log::info('NotificationController::index - User:', ['user_id' => $userId, 'role' => $userRole]);
 
             // Admins can see all notifications, others see only their own
             if ($userRole === 'admin' && $request->has('all')) {

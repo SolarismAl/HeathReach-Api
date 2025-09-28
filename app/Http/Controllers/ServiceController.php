@@ -42,7 +42,10 @@ class ServiceController extends Controller
             \Log::info('Request IP: ' . $request->ip());
             \Log::info('User Agent: ' . $request->userAgent());
             
-            $result = $this->firestoreService->getServices();
+            // Get health_center_id from request parameters for filtering
+            $healthCenterId = $request->input('health_center_id');
+            \Log::info('Health Center ID Filter: ' . ($healthCenterId ? $healthCenterId : 'None (showing all services)'));
+            $result = $this->firestoreService->getServices($healthCenterId);
             
             \Log::info('Firestore Query Result: ' . json_encode([
                 'success' => $result['success'],

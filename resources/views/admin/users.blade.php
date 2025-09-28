@@ -45,7 +45,15 @@
                                                     <i class="fas fa-user text-white"></i>
                                                 </div>
                                                 <div>
-                                                    <strong>{{ $user['first_name'] ?? 'N/A' }} {{ $user['last_name'] ?? '' }}</strong>
+                                                    <strong>
+                                                        @if(isset($user['name']))
+                                                            {{ $user['name'] }}
+                                                        @elseif(isset($user['first_name']))
+                                                            {{ $user['first_name'] }} {{ $user['last_name'] ?? '' }}
+                                                        @else
+                                                            Unknown User
+                                                        @endif
+                                                    </strong>
                                                     @if(isset($user['date_of_birth']))
                                                         <br><small class="text-muted">{{ date('M d, Y', strtotime($user['date_of_birth'])) }}</small>
                                                     @endif
@@ -53,7 +61,7 @@
                                             </div>
                                         </td>
                                         <td>{{ $user['email'] ?? 'N/A' }}</td>
-                                        <td>{{ $user['phone'] ?? 'N/A' }}</td>
+                                        <td>{{ $user['contact_number'] ?? $user['phone'] ?? 'N/A' }}</td>
                                         <td>
                                             @php
                                                 $role = $user['role'] ?? 'patient';
@@ -88,7 +96,7 @@
                                                     <i class="fas fa-eye"></i>
                                                 </button>
                                                 @if(($user['role'] ?? 'patient') !== 'admin')
-                                                    <button class="btn btn-outline-danger" onclick="confirmDelete('{{ $userId }}', '{{ $user['first_name'] ?? 'User' }} {{ $user['last_name'] ?? '' }}')">
+                                                    <button class="btn btn-outline-danger" onclick="confirmDelete('{{ $userId }}', '{{ $user['name'] ?? $user['first_name'] ?? 'User' }} {{ isset($user['name']) ? '' : ($user['last_name'] ?? '') }}')">
                                                         <i class="fas fa-trash"></i>
                                                     </button>
                                                 @endif
@@ -108,7 +116,13 @@
                                                     <div class="row">
                                                         <div class="col-md-6">
                                                             <strong>Name:</strong><br>
-                                                            {{ $user['first_name'] ?? 'N/A' }} {{ $user['last_name'] ?? '' }}
+                                                            @if(isset($user['name']))
+                                                                {{ $user['name'] }}
+                                                            @elseif(isset($user['first_name']))
+                                                                {{ $user['first_name'] }} {{ $user['last_name'] ?? '' }}
+                                                            @else
+                                                                Unknown User
+                                                            @endif
                                                         </div>
                                                         <div class="col-md-6">
                                                             <strong>Email:</strong><br>
@@ -119,7 +133,7 @@
                                                     <div class="row">
                                                         <div class="col-md-6">
                                                             <strong>Phone:</strong><br>
-                                                            {{ $user['phone'] ?? 'N/A' }}
+                                                            {{ $user['contact_number'] ?? $user['phone'] ?? 'N/A' }}
                                                         </div>
                                                         <div class="col-md-6">
                                                             <strong>Gender:</strong><br>

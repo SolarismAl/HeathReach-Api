@@ -111,18 +111,43 @@
                                 @foreach(array_slice($appointments, 0, 5) as $appointmentId => $appointment)
                                     <tr>
                                         <td>
-                                            <strong>{{ $appointment['patient_name'] ?? 'N/A' }}</strong>
+                                            <strong>
+                                                @if(isset($appointment['patient_name']))
+                                                    {{ $appointment['patient_name'] }}
+                                                @elseif(isset($appointment['user']['name']))
+                                                    {{ $appointment['user']['name'] }}
+                                                @elseif(isset($appointment['user']) && is_array($appointment['user']) && isset($appointment['user']['first_name']))
+                                                    {{ $appointment['user']['first_name'] }} {{ $appointment['user']['last_name'] ?? '' }}
+                                                @else
+                                                    Unknown Patient
+                                                @endif
+                                            </strong>
                                             @if(isset($appointment['patient_phone']))
                                                 <br><small class="text-muted">{{ $appointment['patient_phone'] }}</small>
+                                            @elseif(isset($appointment['user']['contact_number']))
+                                                <br><small class="text-muted">{{ $appointment['user']['contact_number'] }}</small>
                                             @endif
                                         </td>
-                                        <td>{{ $appointment['service_name'] ?? 'N/A' }}</td>
                                         <td>
-                                            @if(isset($appointment['appointment_date']))
+                                            @if(isset($appointment['service_name']))
+                                                {{ $appointment['service_name'] }}
+                                            @elseif(isset($appointment['service']['service_name']))
+                                                {{ $appointment['service']['service_name'] }}
+                                            @else
+                                                Service not available
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if(isset($appointment['date']) && isset($appointment['time']))
+                                                {{ date('M d, Y', strtotime($appointment['date'])) }}
+                                                <br><small class="text-muted">{{ $appointment['time'] }}</small>
+                                            @elseif(isset($appointment['appointment_date']))
                                                 {{ date('M d, Y', strtotime($appointment['appointment_date'])) }}
                                                 <br><small class="text-muted">{{ date('h:i A', strtotime($appointment['appointment_date'])) }}</small>
+                                            @elseif(isset($appointment['created_at']))
+                                                {{ date('M d, Y', strtotime($appointment['created_at'])) }}
                                             @else
-                                                <span class="text-muted">N/A</span>
+                                                <span class="text-muted">Date not available</span>
                                             @endif
                                         </td>
                                         <td>
@@ -175,9 +200,20 @@
                         @foreach(array_slice($services, 0, 5) as $serviceId => $service)
                             <div class="list-group-item d-flex justify-content-between align-items-center px-0">
                                 <div>
-                                    <strong>{{ $service['name'] ?? 'N/A' }}</strong>
+                                    <strong>
+                                        @if(isset($service['service_name']))
+                                            {{ $service['service_name'] }}
+                                        @elseif(isset($service['name']))
+                                            {{ $service['name'] }}
+                                        @else
+                                            Service Name Not Available
+                                        @endif
+                                    </strong>
                                     <br>
-                                    <small class="text-muted">₱{{ number_format($service['price'] ?? 0, 2) }} • {{ $service['duration'] ?? 0 }} min</small>
+                                    <small class="text-muted">
+                                        ₱{{ number_format($service['price'] ?? 0, 2) }} • 
+                                        {{ $service['duration_minutes'] ?? $service['duration'] ?? 0 }} min
+                                    </small>
                                 </div>
                                 <span class="badge bg-{{ isset($service['is_active']) && $service['is_active'] ? 'success' : 'secondary' }}">
                                     {{ isset($service['is_active']) && $service['is_active'] ? 'Active' : 'Inactive' }}

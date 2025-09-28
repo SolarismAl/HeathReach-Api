@@ -30,25 +30,19 @@
                     
                     <div class="row mb-3">
                         <div class="col-md-6">
-                            <label for="phone" class="form-label">Phone Number *</label>
-                            <input type="tel" class="form-control" id="phone" name="phone" value="{{ old('phone') }}" required>
+                            <label for="contact_number" class="form-label">Phone Number *</label>
+                            <input type="tel" class="form-control" id="contact_number" name="contact_number" value="{{ old('contact_number') }}" required>
                         </div>
                         <div class="col-md-6">
-                            <label for="email" class="form-label">Email Address *</label>
-                            <input type="email" class="form-control" id="email" name="email" value="{{ old('email') }}" required>
+                            <label for="email" class="form-label">Email Address</label>
+                            <input type="email" class="form-control" id="email" name="email" value="{{ old('email') }}">
                         </div>
                     </div>
                     
                     <div class="row mb-3">
-                        <div class="col-md-6">
-                            <label for="latitude" class="form-label">Latitude *</label>
-                            <input type="number" step="any" class="form-control" id="latitude" name="latitude" value="{{ old('latitude') }}" required>
-                            <small class="form-text text-muted">Example: 14.5995</small>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="longitude" class="form-label">Longitude *</label>
-                            <input type="number" step="any" class="form-control" id="longitude" name="longitude" value="{{ old('longitude') }}" required>
-                            <small class="form-text text-muted">Example: 120.9842</small>
+                        <div class="col-md-12">
+                            <label for="description" class="form-label">Description</label>
+                            <textarea class="form-control" id="description" name="description" rows="3" placeholder="Brief description of the health center">{{ old('description') }}</textarea>
                         </div>
                     </div>
                     

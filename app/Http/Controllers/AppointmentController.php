@@ -33,11 +33,17 @@ class AppointmentController extends Controller
     public function index(Request $request): JsonResponse
     {
         try {
-            $userId = $request->input('firebase_uid');
-            $userRole = $request->input('user_role');
+            // Get user from middleware
+            $user = $request->get('user');
+            $userId = $user['user_id'] ?? $user['firebase_uid'] ?? null;
+            $userRole = $user['role'] ?? 'patient';
+            
+            // Get status filter from request parameters
+            $status = $request->input('status');
+            \Log::info('AppointmentController::index - User:', ['user_id' => $userId, 'role' => $userRole, 'status_filter' => $status]);
 
             $result = match ($userRole) {
-                'patient' => $this->firestoreService->getAppointmentsByUser($userId),
+                'patient' => $this->firestoreService->getAppointmentsByUser($userId, $status),
                 'health_worker', 'admin' => $this->firestoreService->getAllAppointments(),
                 default => ['success' => false, 'error' => 'Invalid user role']
             };
@@ -77,25 +83,36 @@ class AppointmentController extends Controller
      */
     public function store(Request $request): JsonResponse
     {
+        \Log::info('=== CREATE APPOINTMENT ===');
+        \Log::info('Request data: ' . json_encode($request->all()));
+        
         $validator = Validator::make($request->all(), [
             'user_id' => 'required|string',
             'health_center_id' => 'required|string',
-            'date' => 'required|date|after_or_equal:today',
-            'time' => 'required|string',
-            'remarks' => 'nullable|string|max:500',
+            'service_id' => 'required|string',
+            'appointment_date' => 'required|date|after_or_equal:today',
+            'appointment_time' => 'required|string',
+            'notes' => 'nullable|string|max:500',
         ]);
 
         if ($validator->fails()) {
             return response()->json(
-                (new ApiError('Validation failed', $validator->errors()->toArray(), 422))->toArray(),
+                (new ApiError('Validation failed', '422', $validator->errors()->toArray()))->toArray(),
                 422
             );
         }
 
         try {
-            $currentUserId = $request->input('firebase_uid');
-            $userRole = $request->input('user_role');
+            // Get user from middleware
+            $user = $request->get('user');
+            $currentUserId = $user['user_id'] ?? $user['firebase_uid'] ?? null;
+            $userRole = $user['role'] ?? 'patient';
             $requestedUserId = $request->input('user_id');
+            
+            \Log::info('User from middleware: ' . json_encode($user));
+            \Log::info('Current User ID: ' . $currentUserId);
+            \Log::info('User Role: ' . $userRole);
+            \Log::info('Requested User ID: ' . $requestedUserId);
 
             // Check if user can create appointment for this user
             if ($userRole === 'patient' && $currentUserId !== $requestedUserId) {
@@ -109,10 +126,11 @@ class AppointmentController extends Controller
                 appointment_id: Str::uuid()->toString(),
                 user_id: $requestedUserId,
                 health_center_id: $request->input('health_center_id'),
-                date: $request->input('date'),
-                time: $request->input('time'),
+                service_id: $request->input('service_id'),
+                date: $request->input('appointment_date'),
+                time: $request->input('appointment_time'),
                 status: 'pending',
-                remarks: $request->input('remarks'),
+                remarks: $request->input('notes'),
                 created_at: now()->toISOString(),
                 updated_at: now()->toISOString()
             );

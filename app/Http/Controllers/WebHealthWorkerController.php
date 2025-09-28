@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use App\Services\FirestoreService;
 use App\Services\ActivityLogService;
+use Exception;
 
 class WebHealthWorkerController extends Controller
 {
@@ -20,11 +21,46 @@ class WebHealthWorkerController extends Controller
     public function dashboard()
     {
         $user = session('user');
+        \Log::info('=== HEALTH WORKER DASHBOARD ===');
+        \Log::info('Health worker user data:', [$user]);
+        \Log::info('Health worker health_center_id: ' . ($user['health_center_id'] ?? 'NOT SET'));
         
-        // Get health worker's appointments
-        $appointments = $this->firestoreService->getCollection('appointments', [
-            'where' => [['health_center_id', '==', $user['health_center_id'] ?? '']]
-        ]);
+        // Get all appointments and filter by health center
+        $allAppointments = $this->firestoreService->getCollection('appointments');
+        \Log::info('Total appointments found: ' . count($allAppointments));
+        
+        $appointments = [];
+        
+        foreach ($allAppointments as $appointmentId => $appointmentData) {
+            \Log::info('Processing appointment ' . $appointmentId . ' with health_center_id: ' . ($appointmentData['health_center_id'] ?? 'NOT SET'));
+            
+            // For now, show all appointments to health workers (we can filter later)
+            // TODO: Properly associate health workers with health centers
+            $appointments[$appointmentId] = $appointmentData;
+            
+            // Ensure service data is populated
+            if (!isset($appointmentData['service']) || $appointmentData['service'] === null) {
+                \Log::info('Health Worker Dashboard: Service data is null for appointment ' . $appointmentId . ', attempting to fetch by service_id');
+                
+                if (isset($appointmentData['service_id'])) {
+                    try {
+                        $serviceResult = $this->firestoreService->getService($appointmentData['service_id']);
+                        if ($serviceResult['success'] && isset($serviceResult['data'])) {
+                            $appointments[$appointmentId]['service'] = [
+                                'service_name' => $serviceResult['data']->service_name ?? 'N/A',
+                                'price' => $serviceResult['data']->price ?? 0,
+                                'duration_minutes' => $serviceResult['data']->duration_minutes ?? 0,
+                            ];
+                            \Log::info('Health Worker Dashboard: Successfully populated service data for appointment ' . $appointmentId);
+                        }
+                    } catch (Exception $e) {
+                        \Log::error('Health Worker Dashboard: Error fetching service for appointment ' . $appointmentId . ': ' . $e->getMessage());
+                    }
+                }
+            }
+        }
+        
+        \Log::info('Final appointments count for health worker dashboard: ' . count($appointments));
 
         // Get health worker's services
         $services = $this->firestoreService->getCollection('services', [
@@ -39,31 +75,115 @@ class WebHealthWorkerController extends Controller
 
     public function appointments(Request $request)
     {
+        \Log::info('=== HEALTH WORKER APPOINTMENTS PAGE LOADED ===');
+        
         $user = session('user');
-        $filters = ['where' => [['health_center_id', '==', $user['health_center_id'] ?? '']]];
-
-        if ($request->has('status') && $request->status !== '') {
-            $filters['where'][] = ['status', '==', $request->status];
+        \Log::info('Health worker user:', $user);
+        
+        // Get all appointments first, then filter
+        $allAppointments = $this->firestoreService->getCollection('appointments');
+        \Log::info('=== ALL APPOINTMENTS FROM HEALTH WORKER ===');
+        \Log::info('All appointments count: ' . count($allAppointments));
+        \Log::info('All appointments data:', $allAppointments);
+        
+        $appointments = [];
+        $healthCenterId = $user['health_center_id'] ?? '';
+        \Log::info('Filtering by health center ID: ' . $healthCenterId);
+        
+        // If no health center ID, show all appointments for debugging
+        if (empty($healthCenterId)) {
+            \Log::warning('Health worker has no health_center_id assigned! Showing all appointments for debugging.');
+            \Log::info('Available health center IDs in appointments:');
+            foreach ($allAppointments as $id => $apt) {
+                \Log::info('Appointment ' . $id . ' has health_center_id: ' . ($apt['health_center_id'] ?? 'NOT SET'));
+            }
         }
-
-        if ($request->has('date') && $request->date !== '') {
-            $filters['where'][] = ['appointment_date', '>=', $request->date . 'T00:00:00Z'];
-            $filters['where'][] = ['appointment_date', '<=', $request->date . 'T23:59:59Z'];
+        
+        foreach ($allAppointments as $appointmentId => $appointmentData) {
+            \Log::info('=== PROCESSING HEALTH WORKER APPOINTMENT ===');
+            \Log::info('Appointment ID: ' . $appointmentId);
+            \Log::info('Appointment health_center_id: ' . ($appointmentData['health_center_id'] ?? 'NOT SET'));
+            \Log::info('User health_center_id: ' . $healthCenterId);
+            
+            // Filter by health center ID (or show all if no health center assigned)
+            if (empty($healthCenterId) || ($appointmentData['health_center_id'] ?? '') === $healthCenterId) {
+                \Log::info('Appointment matches health center, including...');
+                
+                // Apply additional filters
+                $includeAppointment = true;
+                
+                if ($request->has('status') && $request->status !== '') {
+                    if (($appointmentData['status'] ?? '') !== $request->status) {
+                        $includeAppointment = false;
+                    }
+                }
+                
+                if ($request->has('date') && $request->date !== '') {
+                    $appointmentDate = $appointmentData['date'] ?? '';
+                    if (strpos($appointmentDate, $request->date) !== 0) {
+                        $includeAppointment = false;
+                    }
+                }
+                
+                if ($includeAppointment) {
+                    // Transform the data similar to admin controller
+                    $appointments[$appointmentId] = [
+                        'appointment_id' => $appointmentId,
+                        'user_id' => $appointmentData['user_id'] ?? '',
+                        'health_center_id' => $appointmentData['health_center_id'] ?? '',
+                        'service_id' => $appointmentData['service_id'] ?? '',
+                        'date' => $appointmentData['date'] ?? '',
+                        'time' => $appointmentData['time'] ?? '',
+                        'status' => $appointmentData['status'] ?? 'pending',
+                        'remarks' => $appointmentData['remarks'] ?? '',
+                        'created_at' => $appointmentData['created_at'] ?? '',
+                        'updated_at' => $appointmentData['updated_at'] ?? '',
+                        
+                        // Extract nested data
+                        'patient_name' => isset($appointmentData['user']['name']) ? $appointmentData['user']['name'] : 'N/A',
+                        'patient_phone' => isset($appointmentData['user']['contact_number']) ? $appointmentData['user']['contact_number'] : null,
+                        'patient_email' => isset($appointmentData['user']['email']) ? $appointmentData['user']['email'] : null,
+                        
+                        'health_center_name' => isset($appointmentData['health_center']['name']) ? $appointmentData['health_center']['name'] : 'N/A',
+                        'health_center_address' => isset($appointmentData['health_center']['address']) ? $appointmentData['health_center']['address'] : null,
+                        
+                        'service_name' => $this->getServiceName($appointmentData),
+                        'service_price' => $this->getServicePrice($appointmentData),
+                        'service_duration' => $this->getServiceDuration($appointmentData),
+                    ];
+                    
+                    \Log::info('Transformed health worker appointment:', $appointments[$appointmentId]);
+                }
+            } else {
+                \Log::info('Appointment does not match health center, skipping...');
+            }
         }
-
-        $appointments = $this->firestoreService->getCollection('appointments', $filters);
+        
+        \Log::info('Final filtered appointments count: ' . count($appointments));
         return view('health-worker.appointments', compact('appointments'));
     }
 
     public function updateAppointmentStatus(Request $request, $id)
     {
+        \Log::info('=== HEALTH WORKER UPDATE APPOINTMENT STATUS CALLED ===');
+        \Log::info('Current timestamp: ' . now());
+        \Log::info('Appointment ID: ' . $id);
+        \Log::info('Request data:', $request->all());
+        \Log::info('Request method: ' . $request->method());
+        \Log::info('Request URL: ' . $request->url());
+        \Log::info('Session user:', [session('user')]);
+        \Log::info('Session firebase_uid: ' . session('firebase_uid'));
+        
         $request->validate([
             'status' => 'required|in:pending,confirmed,completed,cancelled',
             'notes' => 'nullable|string',
         ]);
 
         $appointment = $this->firestoreService->getDocument('appointments', $id);
+        \Log::info('Current appointment data:', $appointment);
+        
         if (!$appointment) {
+            \Log::error('Appointment not found: ' . $id);
             return redirect()->back()->with('error', 'Appointment not found.');
         }
 
@@ -76,7 +196,25 @@ class WebHealthWorkerController extends Controller
             $updateData['health_worker_notes'] = $request->notes;
         }
 
-        $this->firestoreService->updateDocument('appointments', $id, $updateData);
+        \Log::info('Update data to be applied:', $updateData);
+        
+        try {
+            $result = $this->firestoreService->updateDocument('appointments', $id, $updateData);
+            \Log::info('Update result:', ['success' => $result]);
+            
+            if (!$result) {
+                \Log::error('Failed to update appointment in Firestore');
+                return redirect()->back()->with('error', 'Failed to update appointment status.');
+            }
+            
+            // Verify the update
+            $updatedAppointment = $this->firestoreService->getDocument('appointments', $id);
+            \Log::info('Updated appointment data:', $updatedAppointment);
+            
+        } catch (Exception $e) {
+            \Log::error('Exception during appointment update:', ['error' => $e->getMessage()]);
+            return redirect()->back()->with('error', 'Error updating appointment: ' . $e->getMessage());
+        }
 
         // Log activity
         $this->activityLogService->log(
@@ -85,6 +223,7 @@ class WebHealthWorkerController extends Controller
             "Appointment status updated to {$request->status} for appointment {$id}"
         );
 
+        \Log::info('Appointment status update completed successfully');
         return redirect()->back()->with('success', 'Appointment status updated successfully.');
     }
 
@@ -166,8 +305,10 @@ class WebHealthWorkerController extends Controller
         
         // Group services by health center ID
         $servicesByCenter = [];
+        \Log::info('=== GROUPING SERVICES BY HEALTH CENTER ===');
         foreach ($allServices as $serviceId => $service) {
             $centerId = $service['health_center_id'] ?? null;
+            \Log::info('Service: ' . ($service['name'] ?? 'NO NAME') . ' belongs to health center: ' . $centerId);
             if ($centerId) {
                 if (!isset($servicesByCenter[$centerId])) {
                     $servicesByCenter[$centerId] = [];
@@ -175,11 +316,16 @@ class WebHealthWorkerController extends Controller
                 $servicesByCenter[$centerId][] = $service;
             }
         }
+        \Log::info('Services grouped by center:', $servicesByCenter);
         
         // Add services to each health center
-        foreach ($healthCenters as $centerId => &$center) {
-            $center['services'] = $servicesByCenter[$centerId] ?? [];
+        foreach ($healthCenters as $centerId => $center) {
+            $healthCenters[$centerId]['services'] = $servicesByCenter[$centerId] ?? [];
+            \Log::info('Adding services to health center: ' . $centerId . ' (' . ($center['name'] ?? 'NO NAME') . ') - Services count: ' . count($healthCenters[$centerId]['services']));
         }
+        
+        // Clear any lingering references to prevent corruption
+        unset($center);
         
         \Log::info('=== WEB HEALTH CENTERS CONTROLLER ===');
         \Log::info('Health Centers loaded: ' . count($healthCenters));
@@ -188,10 +334,17 @@ class WebHealthWorkerController extends Controller
         // Debug: Log raw health centers data
         \Log::info('Raw Health Centers Data:');
         foreach ($healthCenters as $centerId => $center) {
-            \Log::info("  Center ID: {$centerId}");
-            \Log::info("  Center Name: " . ($center['name'] ?? 'N/A'));
-            \Log::info("  Center Address: " . ($center['address'] ?? 'N/A'));
-            \Log::info("  Center Email: " . ($center['email'] ?? 'N/A'));
+            \Log::info('Health Center Firestore Doc ID: ' . $centerId . ', Internal health_center_id: ' . ($center['health_center_id'] ?? 'NO INTERNAL ID') . ', Name: ' . ($center['name'] ?? 'NO NAME'));
+        }
+        
+        // Check for specific health center IDs from appointments
+        $appointmentHealthCenterIds = ['0476757767e941bf8804', 'b2c1915005594f58aee7', '4c0f11737be74cce8e3c'];
+        foreach ($appointmentHealthCenterIds as $hcId) {
+            if (isset($healthCenters[$hcId])) {
+                \Log::info('Found health center with ID ' . $hcId . ': ' . ($healthCenters[$hcId]['name'] ?? 'NO NAME'));
+            } else {
+                \Log::warning('Missing health center with ID: ' . $hcId);
+            }
         }
         
         // Debug: Log raw services data
@@ -286,36 +439,146 @@ class WebHealthWorkerController extends Controller
         return redirect()->route('health-worker.services')->with('success', 'Service deleted successfully.');
     }
 
+    private function getServiceName($appointmentData)
+    {
+        // First try to get from nested service data
+        if (isset($appointmentData['service']['service_name'])) {
+            \Log::info('Service name found in nested data: ' . $appointmentData['service']['service_name']);
+            return $appointmentData['service']['service_name'];
+        }
+        
+        // If service data is null, try to fetch using service_id
+        if (isset($appointmentData['service_id'])) {
+            \Log::info('Service data is null, fetching by service_id: ' . $appointmentData['service_id']);
+            try {
+                $serviceResult = $this->firestoreService->getService($appointmentData['service_id']);
+                if ($serviceResult['success'] && isset($serviceResult['data'])) {
+                    $serviceName = $serviceResult['data']->service_name ?? 'N/A';
+                    \Log::info('Fetched service name: ' . $serviceName);
+                    return $serviceName;
+                }
+            } catch (Exception $e) {
+                \Log::error('Error fetching service: ' . $e->getMessage());
+            }
+        }
+        
+        \Log::info('No service name found, returning N/A');
+        return 'N/A';
+    }
+    
+    private function getServicePrice($appointmentData)
+    {
+        if (isset($appointmentData['service']['price'])) {
+            return $appointmentData['service']['price'];
+        }
+        
+        if (isset($appointmentData['service_id'])) {
+            try {
+                $serviceResult = $this->firestoreService->getService($appointmentData['service_id']);
+                if ($serviceResult['success'] && isset($serviceResult['data'])) {
+                    return $serviceResult['data']->price ?? null;
+                }
+            } catch (Exception $e) {
+                \Log::error('Error fetching service price: ' . $e->getMessage());
+            }
+        }
+        
+        return null;
+    }
+    
+    private function getServiceDuration($appointmentData)
+    {
+        if (isset($appointmentData['service']['duration_minutes'])) {
+            return $appointmentData['service']['duration_minutes'];
+        }
+        
+        if (isset($appointmentData['service_id'])) {
+            try {
+                $serviceResult = $this->firestoreService->getService($appointmentData['service_id']);
+                if ($serviceResult['success'] && isset($serviceResult['data'])) {
+                    return $serviceResult['data']->duration_minutes ?? null;
+                }
+            } catch (Exception $e) {
+                \Log::error('Error fetching service duration: ' . $e->getMessage());
+            }
+        }
+        
+        return null;
+    }
+
     private function getHealthWorkerStats($healthCenterId)
     {
-        $totalAppointments = count($this->firestoreService->getCollection('appointments', [
-            'where' => [['health_center_id', '==', $healthCenterId]]
-        ]));
+        \Log::info('=== CALCULATING HEALTH WORKER STATS ===');
+        \Log::info('Health center ID for stats: ' . ($healthCenterId ?: 'EMPTY'));
+        
+        // If no health center ID, calculate stats from all appointments (same logic as dashboard)
+        if (empty($healthCenterId)) {
+            \Log::info('No health center ID, calculating stats from all appointments');
+            $allAppointments = $this->firestoreService->getCollection('appointments');
+            
+            $totalAppointments = count($allAppointments);
+            $pendingAppointments = 0;
+            $confirmedAppointments = 0;
+            $completedAppointments = 0;
+            
+            foreach ($allAppointments as $appointment) {
+                $status = $appointment['status'] ?? 'pending';
+                switch ($status) {
+                    case 'pending':
+                        $pendingAppointments++;
+                        break;
+                    case 'confirmed':
+                        $confirmedAppointments++;
+                        break;
+                    case 'completed':
+                        $completedAppointments++;
+                        break;
+                }
+            }
+            
+            $totalServices = count($this->firestoreService->getCollection('services'));
+            
+            \Log::info('Stats calculated from all appointments:', [
+                'total' => $totalAppointments,
+                'pending' => $pendingAppointments,
+                'confirmed' => $confirmedAppointments,
+                'completed' => $completedAppointments,
+                'services' => $totalServices
+            ]);
+            
+        } else {
+            // Filter by health center ID
+            \Log::info('Filtering by health center ID: ' . $healthCenterId);
+            
+            $totalAppointments = count($this->firestoreService->getCollection('appointments', [
+                'where' => [['health_center_id', '==', $healthCenterId]]
+            ]));
 
-        $pendingAppointments = count($this->firestoreService->getCollection('appointments', [
-            'where' => [
-                ['health_center_id', '==', $healthCenterId],
-                ['status', '==', 'pending']
-            ]
-        ]));
+            $pendingAppointments = count($this->firestoreService->getCollection('appointments', [
+                'where' => [
+                    ['health_center_id', '==', $healthCenterId],
+                    ['status', '==', 'pending']
+                ]
+            ]));
 
-        $confirmedAppointments = count($this->firestoreService->getCollection('appointments', [
-            'where' => [
-                ['health_center_id', '==', $healthCenterId],
-                ['status', '==', 'confirmed']
-            ]
-        ]));
+            $confirmedAppointments = count($this->firestoreService->getCollection('appointments', [
+                'where' => [
+                    ['health_center_id', '==', $healthCenterId],
+                    ['status', '==', 'confirmed']
+                ]
+            ]));
 
-        $completedAppointments = count($this->firestoreService->getCollection('appointments', [
-            'where' => [
-                ['health_center_id', '==', $healthCenterId],
-                ['status', '==', 'completed']
-            ]
-        ]));
+            $completedAppointments = count($this->firestoreService->getCollection('appointments', [
+                'where' => [
+                    ['health_center_id', '==', $healthCenterId],
+                    ['status', '==', 'completed']
+                ]
+            ]));
 
-        $totalServices = count($this->firestoreService->getCollection('services', [
-            'where' => [['health_center_id', '==', $healthCenterId]]
-        ]));
+            $totalServices = count($this->firestoreService->getCollection('services', [
+                'where' => [['health_center_id', '==', $healthCenterId]]
+            ]));
+        }
 
         return [
             'total_appointments' => $totalAppointments,

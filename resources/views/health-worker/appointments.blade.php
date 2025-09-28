@@ -4,6 +4,29 @@
 @section('page-title', 'Appointments Management')
 
 @section('content')
+<script>
+console.log('=== HEALTH WORKER APPOINTMENTS BLADE TEMPLATE ===');
+console.log('Appointments Data:', @json($appointments));
+console.log('Appointments Count:', Object.keys(@json($appointments)).length);
+console.log('Appointments Keys:', Object.keys(@json($appointments)));
+
+// Log each appointment in detail
+const appointments = @json($appointments);
+Object.keys(appointments).forEach(appointmentId => {
+    console.log('=== HEALTH WORKER APPOINTMENT DETAILS ===');
+    console.log('Appointment ID:', appointmentId);
+    console.log('Appointment Data:', appointments[appointmentId]);
+    console.log('Patient Name:', appointments[appointmentId].patient_name);
+    console.log('Service Name:', appointments[appointmentId].service_name);
+    console.log('Health Center Name:', appointments[appointmentId].health_center_name);
+    console.log('Date:', appointments[appointmentId].date);
+    console.log('Time:', appointments[appointmentId].time);
+    console.log('Status:', appointments[appointmentId].status);
+    console.log('Remarks:', appointments[appointmentId].remarks);
+});
+
+console.log('=== END HEALTH WORKER APPOINTMENTS BLADE ===');
+</script>
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
@@ -62,7 +85,10 @@
                                             @endif
                                         </td>
                                         <td>
-                                            @if(isset($appointment['appointment_date']))
+                                            @if(isset($appointment['date']) && isset($appointment['time']))
+                                                <strong>{{ date('M d, Y', strtotime($appointment['date'])) }}</strong>
+                                                <br><small class="text-muted">{{ date('h:i A', strtotime($appointment['time'])) }}</small>
+                                            @elseif(isset($appointment['appointment_date']))
                                                 <strong>{{ date('M d, Y', strtotime($appointment['appointment_date'])) }}</strong>
                                                 <br><small class="text-muted">{{ date('h:i A', strtotime($appointment['appointment_date'])) }}</small>
                                             @else
@@ -79,7 +105,9 @@
                                             </span>
                                         </td>
                                         <td>
-                                            @if(isset($appointment['health_worker_notes']))
+                                            @if(isset($appointment['remarks']) && !empty($appointment['remarks']))
+                                                <small>{{ Str::limit($appointment['remarks'], 50) }}</small>
+                                            @elseif(isset($appointment['health_worker_notes']))
                                                 <small>{{ Str::limit($appointment['health_worker_notes'], 50) }}</small>
                                             @elseif(isset($appointment['patient_notes']))
                                                 <small class="text-muted">Patient: {{ Str::limit($appointment['patient_notes'], 50) }}</small>
@@ -207,8 +235,15 @@
 @section('scripts')
 <script>
 function updateStatus(appointmentId, status) {
+    console.log('=== UPDATE STATUS FUNCTION CALLED ===');
+    console.log('Appointment ID:', appointmentId);
+    console.log('Status:', status);
+    
     document.getElementById('statusInput').value = status;
     document.getElementById('statusForm').action = `/health-worker/appointments/${appointmentId}/status`;
+    
+    console.log('Form action set to:', document.getElementById('statusForm').action);
+    console.log('Status input value set to:', document.getElementById('statusInput').value);
     
     const actionText = status === 'confirmed' ? 'confirm' : (status === 'completed' ? 'complete' : 'cancel');
     document.getElementById('statusAction').textContent = actionText;
@@ -217,5 +252,23 @@ function updateStatus(appointmentId, status) {
     
     new bootstrap.Modal(document.getElementById('statusModal')).show();
 }
+
+// Add form submission debugging
+document.addEventListener('DOMContentLoaded', function() {
+    const statusForm = document.getElementById('statusForm');
+    if (statusForm) {
+        statusForm.addEventListener('submit', function(e) {
+            console.log('=== FORM SUBMISSION ===');
+            console.log('Form action:', this.action);
+            console.log('Form method:', this.method);
+            console.log('Status value:', document.getElementById('statusInput').value);
+            console.log('Notes value:', document.getElementById('notes').value);
+            console.log('Form data:', new FormData(this));
+            
+            // Let the form submit normally
+            console.log('Form submitting...');
+        });
+    }
+});
 </script>
 @endsection

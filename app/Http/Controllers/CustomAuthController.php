@@ -89,19 +89,61 @@ class CustomAuthController extends Controller
             }
 
             // Find user in Firestore using Firebase UID
-            $user = $this->firestoreService->findByField('users', 'firebase_uid', $firebaseUid);
+            $user = null;
+            try {
+                $user = $this->firestoreService->findByField('users', 'firebase_uid', $firebaseUid);
+            } catch (\Exception $e) {
+                \Log::warning('Firestore lookup by firebase_uid failed: ' . $e->getMessage());
+            }
 
             if (!$user) {
-                \Log::error('User not found in Firestore for Firebase UID:', ['uid' => $firebaseUid]);
+                \Log::info('User not found by firebase_uid, trying email lookup');
                 
                 // Try to find by email as fallback
-                $user = $this->firestoreService->findByField('users', 'email', $email);
+                try {
+                    $user = $this->firestoreService->findByField('users', 'email', $email);
+                } catch (\Exception $e) {
+                    \Log::warning('Firestore lookup by email failed: ' . $e->getMessage());
+                }
                 
                 if (!$user) {
-                    return response()->json([
-                        'success' => false,
-                        'message' => 'User profile not found'
-                    ], 404);
+                    \Log::info('User not found in Firestore, creating new user profile');
+                    
+                    // Determine role based on email
+                    $role = $this->determineUserRole($email, $firebaseUser);
+                    
+                    // Create user profile
+                    $user = [
+                        'user_id' => 'user-' . \Illuminate\Support\Str::uuid(),
+                        'firebase_uid' => $firebaseUid,
+                        'name' => $firebaseUser->displayName ?? explode('@', $email)[0],
+                        'email' => $email,
+                        'role' => $role,
+                        'contact_number' => null,
+                        'address' => null,
+                        'is_active' => true,
+                        'created_at' => now()->toISOString(),
+                        'updated_at' => now()->toISOString(),
+                    ];
+                    
+                    // Save to Firestore
+                    try {
+                        $this->firestoreService->create('users', $user['user_id'], $user);
+                        \Log::info('New user created in Firestore: ' . $user['user_id']);
+                    } catch (\Exception $e) {
+                        \Log::warning('Failed to save user to Firestore: ' . $e->getMessage());
+                    }
+                } else {
+                    // Update firebase_uid if different
+                    if ($user['firebase_uid'] !== $firebaseUid) {
+                        \Log::info('Updating firebase_uid for user: ' . $user['user_id']);
+                        $user['firebase_uid'] = $firebaseUid;
+                        try {
+                            $this->firestoreService->update('users', $user['user_id'], ['firebase_uid' => $firebaseUid]);
+                        } catch (\Exception $e) {
+                            \Log::warning('Failed to update firebase_uid: ' . $e->getMessage());
+                        }
+                    }
                 }
             }
 
@@ -155,5 +197,46 @@ class CustomAuthController extends Controller
                 'message' => 'Login failed: ' . $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * Determine user role based on email patterns or Firebase custom claims
+     */
+    private function determineUserRole(string $email, $firebaseUser = null): string
+    {
+        // Check Firebase custom claims first if available
+        if ($firebaseUser && method_exists($firebaseUser, 'customClaims')) {
+            $customClaims = $firebaseUser->customClaims;
+            if (isset($customClaims['role'])) {
+                \Log::info('Role from Firebase custom claims: ' . $customClaims['role']);
+                return $customClaims['role'];
+            }
+        }
+
+        // Determine role based on email patterns
+        $email = strtolower($email);
+        
+        // Admin patterns
+        if (str_contains($email, 'admin') || 
+            str_contains($email, 'administrator') ||
+            in_array($email, ['admin@healthreach.com', 'admin@gmail.com', 'admin@example.com'])) {
+            \Log::info('Role determined as admin based on email pattern');
+            return 'admin';
+        }
+        
+        // Health worker patterns
+        if (str_contains($email, 'doctor') || 
+            str_contains($email, 'nurse') || 
+            str_contains($email, 'health') ||
+            str_contains($email, 'worker') ||
+            str_contains($email, 'medical') ||
+            in_array($email, ['healthworker@gmail.com', 'doctor@gmail.com', 'nurse@gmail.com'])) {
+            \Log::info('Role determined as health_worker based on email pattern');
+            return 'health_worker';
+        }
+        
+        // Default to patient
+        \Log::info('Role defaulted to patient');
+        return 'patient';
     }
 }

@@ -4,6 +4,28 @@
 @section('page-title', 'All Appointments')
 
 @section('content')
+<script>
+console.log('=== APPOINTMENTS BLADE TEMPLATE ===');
+console.log('Appointments Data:', @json($appointments));
+console.log('Appointments Count:', Object.keys(@json($appointments)).length);
+console.log('Appointments Keys:', Object.keys(@json($appointments)));
+
+// Log each appointment in detail
+const appointments = @json($appointments);
+Object.keys(appointments).forEach(appointmentId => {
+    console.log('=== APPOINTMENT DETAILS ===');
+    console.log('Appointment ID:', appointmentId);
+    console.log('Appointment Data:', appointments[appointmentId]);
+    console.log('Patient Name:', appointments[appointmentId].patient_name);
+    console.log('Service Name:', appointments[appointmentId].service_name);
+    console.log('Health Center Name:', appointments[appointmentId].health_center_name);
+    console.log('Date:', appointments[appointmentId].date);
+    console.log('Time:', appointments[appointmentId].time);
+    console.log('Status:', appointments[appointmentId].status);
+});
+
+console.log('=== END APPOINTMENTS BLADE ===');
+</script>
 <div class="row mb-4">
     <div class="col-md-12">
         <div class="card">
@@ -57,9 +79,9 @@
                                             @endif
                                         </td>
                                         <td>
-                                            @if(isset($appointment['appointment_date']))
-                                                <strong>{{ date('M d, Y', strtotime($appointment['appointment_date'])) }}</strong>
-                                                <br><small class="text-muted">{{ date('h:i A', strtotime($appointment['appointment_date'])) }}</small>
+                                            @if(isset($appointment['date']) && isset($appointment['time']))
+                                                <strong>{{ date('M d, Y', strtotime($appointment['date'])) }}</strong>
+                                                <br><small class="text-muted">{{ date('h:i A', strtotime($appointment['time'])) }}</small>
                                             @else
                                                 <span class="text-muted">N/A</span>
                                             @endif
@@ -107,7 +129,7 @@
                                                             <h6>Appointment Information</h6>
                                                             <p><strong>Service:</strong> {{ $appointment['service_name'] ?? 'N/A' }}</p>
                                                             <p><strong>Health Center:</strong> {{ $appointment['health_center_name'] ?? $appointment['health_center_id'] ?? 'N/A' }}</p>
-                                                            <p><strong>Date:</strong> {{ isset($appointment['appointment_date']) ? date('M d, Y h:i A', strtotime($appointment['appointment_date'])) : 'N/A' }}</p>
+                                                            <p><strong>Date:</strong> {{ isset($appointment['date']) && isset($appointment['time']) ? date('M d, Y', strtotime($appointment['date'])) . ' at ' . date('h:i A', strtotime($appointment['time'])) : 'N/A' }}</p>
                                                             <p><strong>Status:</strong> 
                                                                 @php
                                                                     $modalStatus = $appointment['status'] ?? 'pending';
@@ -138,6 +160,44 @@
                                                             <strong>Created:</strong> {{ date('M d, Y h:i A', strtotime($appointment['created_at'])) }}
                                                         </small>
                                                     @endif
+                                                </div>
+                                                <div class="modal-footer">
+                                                    @if($appointment['status'] === 'pending')
+                                                        <form method="POST" action="{{ route('admin.appointments.update-status', $appointmentId) }}" style="display: inline;">
+                                                            @csrf
+                                                            @method('PUT')
+                                                            <input type="hidden" name="status" value="confirmed">
+                                                            <button type="submit" class="btn btn-success btn-sm">
+                                                                <i class="fas fa-check"></i> Accept
+                                                            </button>
+                                                        </form>
+                                                        <form method="POST" action="{{ route('admin.appointments.update-status', $appointmentId) }}" style="display: inline;">
+                                                            @csrf
+                                                            @method('PUT')
+                                                            <input type="hidden" name="status" value="cancelled">
+                                                            <button type="submit" class="btn btn-danger btn-sm">
+                                                                <i class="fas fa-times"></i> Decline
+                                                            </button>
+                                                        </form>
+                                                    @elseif($appointment['status'] === 'confirmed')
+                                                        <form method="POST" action="{{ route('admin.appointments.update-status', $appointmentId) }}" style="display: inline;">
+                                                            @csrf
+                                                            @method('PUT')
+                                                            <input type="hidden" name="status" value="completed">
+                                                            <button type="submit" class="btn btn-info btn-sm">
+                                                                <i class="fas fa-check-circle"></i> Mark Complete
+                                                            </button>
+                                                        </form>
+                                                        <form method="POST" action="{{ route('admin.appointments.update-status', $appointmentId) }}" style="display: inline;">
+                                                            @csrf
+                                                            @method('PUT')
+                                                            <input type="hidden" name="status" value="cancelled">
+                                                            <button type="submit" class="btn btn-danger btn-sm">
+                                                                <i class="fas fa-times"></i> Cancel
+                                                            </button>
+                                                        </form>
+                                                    @endif
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                                                 </div>
                                             </div>
                                         </div>

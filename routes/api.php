@@ -37,6 +37,130 @@ Route::get('test/status', function() {
     ]);
 });
 
+Route::get('test/quick-appointments', function() {
+    return response()->json([
+        'success' => true,
+        'message' => 'Quick appointments test',
+        'data' => [
+            [
+                'appointment_id' => 'test-1',
+                'user_id' => 'user-test',
+                'service_name' => 'Test Service',
+                'appointment_date' => '2025-01-15',
+                'appointment_time' => '10:00',
+                'status' => 'pending'
+            ]
+        ],
+        'timestamp' => now()
+    ]);
+});
+
+Route::get('test/quick-notifications', function() {
+    return response()->json([
+        'success' => true,
+        'message' => 'Quick notifications test',
+        'data' => [
+            [
+                'notification_id' => 'notif-1',
+                'user_id' => 'user-test',
+                'title' => 'Appointment Reminder',
+                'message' => 'You have an upcoming appointment tomorrow at 10:00 AM',
+                'date_sent' => '2025-01-14T09:00:00Z',
+                'is_read' => false,
+                'type' => 'appointment_reminder'
+            ],
+            [
+                'notification_id' => 'notif-2',
+                'user_id' => 'user-test',
+                'title' => 'Welcome to HealthReach',
+                'message' => 'Thank you for joining HealthReach! Book your first appointment today.',
+                'date_sent' => '2025-01-13T08:00:00Z',
+                'is_read' => true,
+                'type' => 'welcome'
+            ]
+        ],
+        'timestamp' => now()
+    ]);
+});
+
+Route::get('test/firestore-data', function() {
+    try {
+        $firestoreService = app(\App\Services\FirestoreService::class);
+        
+        // Get all collections data
+        $users = $firestoreService->getCollection('users');
+        $healthCenters = $firestoreService->getCollection('health_centers');
+        $services = $firestoreService->getCollection('services');
+        $appointments = $firestoreService->getCollection('appointments');
+        $notifications = $firestoreService->getCollection('notifications');
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Firestore data retrieved',
+            'data' => [
+                'users_count' => count($users),
+                'health_centers_count' => count($healthCenters),
+                'services_count' => count($services),
+                'appointments_count' => count($appointments),
+                'notifications_count' => count($notifications),
+                'sample_user' => !empty($users) ? array_values($users)[0] : null,
+                'sample_health_center' => !empty($healthCenters) ? array_values($healthCenters)[0] : null,
+                'sample_service' => !empty($services) ? array_values($services)[0] : null,
+                'sample_appointment' => !empty($appointments) ? array_values($appointments)[0] : null,
+                'sample_notification' => !empty($notifications) ? array_values($notifications)[0] : null,
+            ],
+            'timestamp' => now()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'timestamp' => now()
+        ], 500);
+    }
+});
+
+// Test endpoints without authentication for API testing
+Route::get('test/real-health-centers', function() {
+    try {
+        $firestoreService = app(\App\Services\FirestoreService::class);
+        $result = $firestoreService->getHealthCenters();
+        return response()->json($result);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+    }
+});
+
+Route::get('test/real-services', function() {
+    try {
+        $firestoreService = app(\App\Services\FirestoreService::class);
+        $result = $firestoreService->getServices();
+        return response()->json($result);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+    }
+});
+
+Route::get('test/real-appointments', function() {
+    try {
+        $firestoreService = app(\App\Services\FirestoreService::class);
+        $result = $firestoreService->getAllAppointments();
+        return response()->json($result);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+    }
+});
+
+Route::get('test/real-notifications', function() {
+    try {
+        $firestoreService = app(\App\Services\FirestoreService::class);
+        $result = $firestoreService->getAllNotifications();
+        return response()->json($result);
+    } catch (\Exception $e) {
+        return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+    }
+});
+
 // Authentication routes using Firebase
 Route::prefix('auth')->group(function () {
     Route::post('register', [FirebaseAuthController::class, 'register']);
@@ -45,12 +169,15 @@ Route::prefix('auth')->group(function () {
     Route::post('google', [FirebaseAuthController::class, 'googleLogin']);
     Route::post('logout', [FirebaseAuthController::class, 'logout'])->middleware('firebase.auth');
     Route::get('profile', [FirebaseAuthController::class, 'profile'])->middleware('firebase.auth');
+    Route::put('profile', [FirebaseAuthController::class, 'updateProfile'])->middleware('firebase.auth');
     Route::post('forgot-password', [FirebaseAuthController::class, 'forgotPassword']);
 });
 
 // User management routes using Firestore
 Route::middleware('firebase.auth')->prefix('users')->group(function () {
     Route::get('/', [FirestoreUserController::class, 'index'])->middleware('firebase.role:admin');
+    Route::get('/profile', [FirebaseAuthController::class, 'profile']);
+    Route::put('/profile', [FirebaseAuthController::class, 'updateProfile']);
     Route::get('/{id}', [FirestoreUserController::class, 'show']);
     Route::put('/{id}', [FirestoreUserController::class, 'update']);
     Route::delete('/{id}', [FirestoreUserController::class, 'destroy'])->middleware('firebase.role:admin');

@@ -67,14 +67,33 @@ class FirestoreService
     public function updateDocument(string $collection, string $documentId, array $data): bool
     {
         try {
+            Log::info('=== FIRESTORE UPDATE DOCUMENT ===');
+            Log::info('Collection: ' . $collection);
+            Log::info('Document ID: ' . $documentId);
+            Log::info('Data to update:', $data);
+            
             // Add updated timestamp
             $data['updated_at'] = Carbon::now()->toISOString();
             
             $docRef = $this->firestore->collection($collection)->document($documentId);
-            $docRef->update($data);
+            
+            // Check if document exists first
+            $snapshot = $docRef->snapshot();
+            if (!$snapshot->exists()) {
+                Log::error('Document does not exist: ' . $collection . '/' . $documentId);
+                return false;
+            }
+            
+            Log::info('Document exists, proceeding with update...');
+            
+            // Try using set() with merge instead of update()
+            Log::info('Using set with merge option instead of update');
+            $docRef->set($data, ['merge' => true]);
+            Log::info('Document updated successfully using set with merge');
             return true;
         } catch (Exception $e) {
             Log::error('Firestore update error: ' . $e->getMessage());
+            Log::error('Stack trace: ' . $e->getTraceAsString());
             return false;
         }
     }
@@ -149,7 +168,20 @@ class FirestoreService
             $healthCenters = [];
             foreach ($documents as $document) {
                 if ($document->exists()) {
-                    $healthCenters[] = HealthCenterData::fromArray($document->data());
+                    $data = $document->data();
+                    // Map Firestore data to DTO expected format
+                    $mappedData = [
+                        'health_center_id' => $document->id(), // Use document ID
+                        'name' => $data['name'] ?? '',
+                        'address' => $data['address'] ?? '',
+                        'contact_number' => $data['phone'] ?? null, // Map phone to contact_number
+                        'email' => $data['email'] ?? null,
+                        'description' => $data['description'] ?? null,
+                        'is_active' => $data['is_active'] ?? true,
+                        'created_at' => $data['created_at'] ?? null,
+                        'updated_at' => $data['updated_at'] ?? null,
+                    ];
+                    $healthCenters[] = HealthCenterData::fromArray($mappedData);
                 }
             }
             
@@ -200,6 +232,44 @@ class FirestoreService
         }
     }
 
+    public function getUser(string $userId): array
+    {
+        try {
+            $docRef = $this->firestore->collection('users')->document($userId);
+            $document = $docRef->snapshot();
+            
+            if ($document->exists()) {
+                $data = $document->data();
+                
+                // Map Firestore data to DTO expected format
+                $mappedData = [
+                    'user_id' => $document->id(),
+                    'firebase_uid' => $data['firebase_uid'] ?? $document->id(),
+                    'name' => $data['name'] ?? '',
+                    'email' => $data['email'] ?? '',
+                    'contact_number' => $data['contact_number'] ?? $data['phone'] ?? '',
+                    'role' => $data['role'] ?? 'patient',
+                    'profile_picture' => $data['profile_picture'] ?? null,
+                    'date_of_birth' => $data['date_of_birth'] ?? null,
+                    'gender' => $data['gender'] ?? null,
+                    'address' => $data['address'] ?? null,
+                    'emergency_contact' => $data['emergency_contact'] ?? null,
+                    'is_active' => $data['is_active'] ?? true,
+                    'created_at' => $data['created_at'] ?? null,
+                    'updated_at' => $data['updated_at'] ?? null,
+                ];
+                
+                $userData = UserData::fromArray($mappedData);
+                return ['success' => true, 'data' => $userData];
+            } else {
+                return ['success' => false, 'error' => 'User not found'];
+            }
+        } catch (Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+
     // Services Collection
     public function createService(ServiceData $serviceData): array
     {
@@ -213,16 +283,37 @@ class FirestoreService
         }
     }
 
-    public function getServices(): array
+    public function getServices(?string $healthCenterId = null): array
     {
         try {
             $collection = $this->firestore->collection('services');
-            $documents = $collection->documents();
+            
+            // If health center ID is provided, filter by it
+            if ($healthCenterId) {
+                $query = $collection->where('health_center_id', '=', $healthCenterId);
+                $documents = $query->documents();
+            } else {
+                $documents = $collection->documents();
+            }
             
             $services = [];
             foreach ($documents as $document) {
                 if ($document->exists()) {
-                    $services[] = ServiceData::fromArray($document->data());
+                    $data = $document->data();
+                    // Map document ID to service_id if not present
+                    $mappedData = [
+                        'service_id' => $data['service_id'] ?? $document->id(),
+                        'health_center_id' => $data['health_center_id'] ?? '',
+                        'service_name' => $data['service_name'] ?? $data['name'] ?? '',
+                        'description' => $data['description'] ?? '',
+                        'duration_minutes' => $data['duration_minutes'] ?? $data['duration'] ?? null,
+                        'price' => $data['price'] ?? null,
+                        'is_active' => $data['is_active'] ?? true,
+                        'schedule' => $data['schedule'] ?? [],
+                        'created_at' => $data['created_at'] ?? null,
+                        'updated_at' => $data['updated_at'] ?? null,
+                    ];
+                    $services[] = ServiceData::fromArray($mappedData);
                 }
             }
             
@@ -251,7 +342,23 @@ class FirestoreService
             $document = $docRef->snapshot();
             
             if ($document->exists()) {
-                $serviceData = ServiceData::fromArray($document->data());
+                $data = $document->data();
+                
+                // Map Firestore data to DTO expected format
+                $mappedData = [
+                    'service_id' => $data['service_id'] ?? $document->id(),
+                    'health_center_id' => $data['health_center_id'] ?? '',
+                    'service_name' => $data['service_name'] ?? $data['name'] ?? '',
+                    'description' => $data['description'] ?? '',
+                    'duration_minutes' => $data['duration_minutes'] ?? $data['duration'] ?? null,
+                    'price' => $data['price'] ?? null,
+                    'is_active' => $data['is_active'] ?? true,
+                    'schedule' => $data['schedule'] ?? [],
+                    'created_at' => $data['created_at'] ?? null,
+                    'updated_at' => $data['updated_at'] ?? null,
+                ];
+                
+                $serviceData = ServiceData::fromArray($mappedData);
                 return ['success' => true, 'data' => $serviceData];
             } else {
                 return ['success' => false, 'error' => 'Service not found'];
@@ -277,26 +384,145 @@ class FirestoreService
     public function createAppointment(AppointmentData $appointmentData): array
     {
         try {
-            $docRef = $this->firestore->collection('appointments')->document($appointmentData->appointment_id);
-            $docRef->set($appointmentData->toArray());
+            // Fetch related data to populate the appointment
+            $userData = null;
+            $healthCenterData = null;
+            $serviceData = null;
             
-            return ['success' => true, 'data' => $appointmentData];
+            // Get user data
+            \Log::info('Attempting to fetch user with ID:', ['user_id' => $appointmentData->user_id]);
+            $userResult = $this->getUser($appointmentData->user_id);
+            \Log::info('User fetch result:', $userResult);
+            if ($userResult['success'] && !empty($userResult['data'])) {
+                $userData = $userResult['data'];
+                \Log::info('User data populated successfully');
+            } else {
+                \Log::error('Failed to fetch user data:', [
+                    'user_id' => $appointmentData->user_id,
+                    'result' => $userResult
+                ]);
+            }
+            
+            // Get health center data
+            \Log::info('Attempting to fetch health center with ID:', ['health_center_id' => $appointmentData->health_center_id]);
+            $healthCenterResult = $this->getHealthCenter($appointmentData->health_center_id);
+            \Log::info('Health center fetch result:', $healthCenterResult);
+            if ($healthCenterResult['success'] && !empty($healthCenterResult['data'])) {
+                $healthCenterData = $healthCenterResult['data'];
+                \Log::info('Health center data populated successfully');
+            } else {
+                \Log::error('Failed to fetch health center data:', [
+                    'health_center_id' => $appointmentData->health_center_id,
+                    'result' => $healthCenterResult
+                ]);
+            }
+            
+            // Get service data
+            \Log::info('Attempting to fetch service with ID:', ['service_id' => $appointmentData->service_id]);
+            $serviceResult = $this->getService($appointmentData->service_id);
+            \Log::info('Service fetch result:', $serviceResult);
+            if ($serviceResult['success'] && !empty($serviceResult['data'])) {
+                $serviceData = $serviceResult['data'];
+                \Log::info('Service data populated successfully');
+            } else {
+                \Log::error('Failed to fetch service data:', [
+                    'service_id' => $appointmentData->service_id,
+                    'result' => $serviceResult
+                ]);
+            }
+            
+            // Create appointment with populated data
+            $appointmentWithData = new AppointmentData(
+                appointment_id: $appointmentData->appointment_id,
+                user_id: $appointmentData->user_id,
+                health_center_id: $appointmentData->health_center_id,
+                service_id: $appointmentData->service_id,
+                date: $appointmentData->date,
+                time: $appointmentData->time,
+                status: $appointmentData->status,
+                remarks: $appointmentData->remarks,
+                user: $userData,
+                health_center: $healthCenterData,
+                service: $serviceData,
+                created_at: $appointmentData->created_at,
+                updated_at: $appointmentData->updated_at
+            );
+            
+            $docRef = $this->firestore->collection('appointments')->document($appointmentData->appointment_id);
+            $appointmentArray = $appointmentWithData->toArray();
+            \Log::info('Final appointment data being stored:', $appointmentArray);
+            $docRef->set($appointmentArray);
+            
+            \Log::info('Appointment created successfully with ID:', ['appointment_id' => $appointmentData->appointment_id]);
+            return ['success' => true, 'data' => $appointmentWithData];
         } catch (Exception $e) {
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
 
-    public function getAppointmentsByUser(string $userId): array
+    public function getAppointmentsByUser(string $userId, ?string $status = null): array
     {
         try {
             $collection = $this->firestore->collection('appointments');
+            // Query by user_id (the correct field name)
             $query = $collection->where('user_id', '=', $userId);
+            
+            // Add status filter if provided
+            if ($status && $status !== 'all') {
+                $query = $query->where('status', '=', $status);
+                \Log::info('Filtering appointments by status:', ['status' => $status]);
+            }
+            
             $documents = $query->documents();
             
             $appointments = [];
             foreach ($documents as $document) {
                 if ($document->exists()) {
-                    $appointments[] = AppointmentData::fromArray($document->data());
+                    $data = $document->data();
+                    
+                    // Get the date and time from the stored data
+                    $date = $data['date'] ?? '';
+                    $time = $data['time'] ?? '';
+                    
+                    // Get related data
+                    $userData = null;
+                    $healthCenterData = null;
+                    $serviceData = null;
+                    
+                    if (isset($data['user']) && is_array($data['user'])) {
+                        $userData = UserData::fromArray($data['user']);
+                    }
+                    
+                    if (isset($data['health_center']) && is_array($data['health_center'])) {
+                        $healthCenterData = HealthCenterData::fromArray($data['health_center']);
+                    }
+                    
+                    if (isset($data['service']) && is_array($data['service'])) {
+                        $serviceData = ServiceData::fromArray($data['service']);
+                    } else if (!empty($data['service_id'])) {
+                        // Fetch service data if not stored in appointment
+                        $serviceResult = $this->getService($data['service_id']);
+                        if ($serviceResult['success'] && !empty($serviceResult['data'])) {
+                            $serviceData = $serviceResult['data'];
+                        }
+                    }
+                    
+                    $mappedData = [
+                        'appointment_id' => $document->id(),
+                        'user_id' => $data['user_id'] ?? '',
+                        'health_center_id' => $data['health_center_id'] ?? '',
+                        'service_id' => $data['service_id'] ?? '',
+                        'date' => $date,
+                        'time' => $time,
+                        'status' => $data['status'] ?? 'pending',
+                        'remarks' => $data['remarks'] ?? null,
+                        'user' => $userData?->toArray(),
+                        'health_center' => $healthCenterData?->toArray(),
+                        'service' => $serviceData?->toArray(),
+                        'created_at' => $data['created_at'] ?? null,
+                        'updated_at' => $data['updated_at'] ?? null,
+                    ];
+                    $appointments[] = AppointmentData::fromArray($mappedData);
                 }
             }
             
@@ -315,7 +541,51 @@ class FirestoreService
             $appointments = [];
             foreach ($documents as $document) {
                 if ($document->exists()) {
-                    $appointments[] = AppointmentData::fromArray($document->data());
+                    $data = $document->data();
+                    
+                    // Get the date and time from the stored data
+                    $date = $data['date'] ?? '';
+                    $time = $data['time'] ?? '';
+                    
+                    // Get related data
+                    $userData = null;
+                    $healthCenterData = null;
+                    $serviceData = null;
+                    
+                    if (isset($data['user']) && is_array($data['user'])) {
+                        $userData = UserData::fromArray($data['user']);
+                    }
+                    
+                    if (isset($data['health_center']) && is_array($data['health_center'])) {
+                        $healthCenterData = HealthCenterData::fromArray($data['health_center']);
+                    }
+                    
+                    if (isset($data['service']) && is_array($data['service'])) {
+                        $serviceData = ServiceData::fromArray($data['service']);
+                    } else if (!empty($data['service_id'])) {
+                        // Fetch service data if not stored in appointment
+                        $serviceResult = $this->getService($data['service_id']);
+                        if ($serviceResult['success'] && !empty($serviceResult['data'])) {
+                            $serviceData = $serviceResult['data'];
+                        }
+                    }
+                    
+                    $mappedData = [
+                        'appointment_id' => $document->id(),
+                        'user_id' => $data['user_id'] ?? '',
+                        'health_center_id' => $data['health_center_id'] ?? '',
+                        'service_id' => $data['service_id'] ?? '',
+                        'date' => $date,
+                        'time' => $time,
+                        'status' => $data['status'] ?? 'pending',
+                        'remarks' => $data['remarks'] ?? null,
+                        'user' => $userData?->toArray(),
+                        'health_center' => $healthCenterData?->toArray(),
+                        'service' => $serviceData?->toArray(),
+                        'created_at' => $data['created_at'] ?? null,
+                        'updated_at' => $data['updated_at'] ?? null,
+                    ];
+                    $appointments[] = AppointmentData::fromArray($mappedData);
                 }
             }
             
@@ -354,13 +624,37 @@ class FirestoreService
     {
         try {
             $collection = $this->firestore->collection('notifications');
-            $query = $collection->where('user_id', '=', $userId)->orderBy('date_sent', 'DESC');
+            $query = $collection->where('user_id', '=', $userId);
             $documents = $query->documents();
             
             $notifications = [];
             foreach ($documents as $document) {
                 if ($document->exists()) {
-                    $notifications[] = NotificationData::fromArray($document->data());
+                    $data = $document->data();
+                    
+                    // Skip placeholder documents
+                    if (isset($data['placeholder']) && $data['placeholder'] === true) {
+                        continue;
+                    }
+                    
+                    // Only process documents that have the required notification fields
+                    if (!isset($data['title']) || !isset($data['message'])) {
+                        continue;
+                    }
+                    
+                    // Map Firestore data to DTO expected format
+                    $mappedData = [
+                        'notification_id' => $document->id(), // Use document ID
+                        'user_id' => $data['user_id'] ?? '',
+                        'title' => $data['title'] ?? '',
+                        'message' => $data['message'] ?? '',
+                        'date_sent' => $data['date_sent'] ?? $data['created_at'] ?? now()->toISOString(),
+                        'is_read' => $data['is_read'] ?? false,
+                        'type' => $data['type'] ?? 'general',
+                        'created_at' => $data['created_at'] ?? null,
+                        'updated_at' => $data['updated_at'] ?? null,
+                    ];
+                    $notifications[] = NotificationData::fromArray($mappedData);
                 }
             }
             
@@ -374,13 +668,36 @@ class FirestoreService
     {
         try {
             $collection = $this->firestore->collection('notifications');
-            $query = $collection->orderBy('date_sent', 'DESC');
-            $documents = $query->documents();
+            $documents = $collection->documents();
             
             $notifications = [];
             foreach ($documents as $document) {
                 if ($document->exists()) {
-                    $notifications[] = NotificationData::fromArray($document->data());
+                    $data = $document->data();
+                    
+                    // Skip placeholder documents
+                    if (isset($data['placeholder']) && $data['placeholder'] === true) {
+                        continue;
+                    }
+                    
+                    // Only process documents that have the required notification fields
+                    if (!isset($data['title']) || !isset($data['message'])) {
+                        continue;
+                    }
+                    
+                    // Map Firestore data to DTO expected format
+                    $mappedData = [
+                        'notification_id' => $document->id(), // Use document ID
+                        'user_id' => $data['user_id'] ?? '',
+                        'title' => $data['title'] ?? '',
+                        'message' => $data['message'] ?? '',
+                        'date_sent' => $data['date_sent'] ?? $data['created_at'] ?? now()->toISOString(),
+                        'is_read' => $data['is_read'] ?? false,
+                        'type' => $data['type'] ?? 'general',
+                        'created_at' => $data['created_at'] ?? null,
+                        'updated_at' => $data['updated_at'] ?? null,
+                    ];
+                    $notifications[] = NotificationData::fromArray($mappedData);
                 }
             }
             

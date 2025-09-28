@@ -54,7 +54,7 @@ console.log('=== END ADMIN HEALTH CENTERS BLADE ===');
                                         <div class="mb-2">
                                             <small class="text-muted">
                                                 <i class="fas fa-phone me-1"></i>
-                                                {{ $center['phone'] ?? 'N/A' }}
+                                                {{ $center['contact_number'] ?? 'N/A' }}
                                             </small>
                                         </div>
                                         
@@ -65,11 +65,11 @@ console.log('=== END ADMIN HEALTH CENTERS BLADE ===');
                                             </small>
                                         </div>
                                         
-                                        @if(isset($center['latitude']) && isset($center['longitude']))
+                                        @if(isset($center['description']) && $center['description'])
                                             <div class="mb-3">
                                                 <small class="text-muted">
-                                                    <i class="fas fa-globe me-1"></i>
-                                                    {{ $center['latitude'] }}, {{ $center['longitude'] }}
+                                                    <i class="fas fa-info-circle me-1"></i>
+                                                    {{ Str::limit($center['description'], 100) }}
                                                 </small>
                                             </div>
                                         @endif
@@ -123,23 +123,19 @@ console.log('=== END ADMIN HEALTH CENTERS BLADE ===');
                                             <div class="row">
                                                 <div class="col-md-6">
                                                     <strong>Phone:</strong><br>
-                                                    {{ $center['phone'] ?? 'N/A' }}
+                                                    {{ $center['contact_number'] ?? 'N/A' }}
                                                 </div>
                                                 <div class="col-md-6">
                                                     <strong>Email:</strong><br>
                                                     {{ $center['email'] ?? 'N/A' }}
                                                 </div>
                                             </div>
-                                            @if(isset($center['latitude']) && isset($center['longitude']))
+                                            @if(isset($center['description']) && $center['description'])
                                                 <hr>
                                                 <div class="row">
-                                                    <div class="col-md-6">
-                                                        <strong>Latitude:</strong><br>
-                                                        {{ $center['latitude'] }}
-                                                    </div>
-                                                    <div class="col-md-6">
-                                                        <strong>Longitude:</strong><br>
-                                                        {{ $center['longitude'] }}
+                                                    <div class="col-md-12">
+                                                        <strong>Description:</strong><br>
+                                                        {{ $center['description'] }}
                                                     </div>
                                                 </div>
                                             @endif

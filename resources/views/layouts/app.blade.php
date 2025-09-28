@@ -70,6 +70,177 @@
             font-weight: bold;
             color: #667eea !important;
         }
+
+        /* Mobile Sidebar Styles */
+        .sidebar-mobile {
+            position: fixed;
+            top: 0;
+            left: -100%;
+            width: 280px;
+            height: 100vh;
+            z-index: 1050;
+            transition: left 0.3s ease;
+        }
+        
+        .sidebar-mobile.show {
+            left: 0;
+        }
+        
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1040;
+        }
+        
+        .sidebar-overlay.show {
+            display: block;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 991.98px) {
+            .sidebar {
+                position: fixed;
+                top: 0;
+                left: -100%;
+                width: 280px;
+                height: 100vh;
+                z-index: 1050;
+                transition: left 0.3s ease;
+            }
+            
+            .sidebar.show {
+                left: 0;
+            }
+            
+            .main-content {
+                margin-left: 0 !important;
+                width: 100%;
+            }
+            
+            .mobile-menu-btn {
+                display: block !important;
+            }
+        }
+        
+        @media (min-width: 992px) {
+            .sidebar {
+                position: relative;
+                left: 0;
+            }
+            
+            .mobile-menu-btn {
+                display: none !important;
+            }
+            
+            .sidebar-overlay {
+                display: none !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 1rem !important;
+            }
+            
+            .navbar {
+                padding: 0.5rem 1rem;
+                margin-bottom: 1rem !important;
+            }
+            
+            .card {
+                margin-bottom: 1rem;
+            }
+            
+            .stats-card {
+                margin-bottom: 1rem;
+                text-align: center;
+            }
+            
+            .table-responsive {
+                font-size: 0.875rem;
+            }
+            
+            .btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.875rem;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .main-content {
+                padding: 0.75rem !important;
+            }
+            
+            .navbar {
+                padding: 0.5rem;
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .navbar-brand {
+                text-align: center;
+                margin-bottom: 0.5rem;
+            }
+            
+            .card-header {
+                padding: 0.75rem;
+                font-size: 0.95rem;
+            }
+            
+            .card-body {
+                padding: 0.75rem;
+            }
+            
+            .table thead th {
+                padding: 0.5rem;
+                font-size: 0.75rem;
+            }
+            
+            .table tbody td {
+                padding: 0.5rem;
+                font-size: 0.8rem;
+            }
+            
+            .btn {
+                width: 100%;
+                margin-bottom: 0.5rem;
+            }
+            
+            .btn-group .btn {
+                width: auto;
+                margin-bottom: 0;
+            }
+            
+            .modal-dialog {
+                margin: 0.5rem;
+            }
+            
+            .stats-card {
+                padding: 1rem;
+            }
+        }
+
+        /* Utility Classes */
+        .hide-mobile {
+            @media (max-width: 576px) {
+                display: none !important;
+            }
+        }
+        
+        .show-mobile {
+            display: none !important;
+        }
+        
+        @media (max-width: 576px) {
+            .show-mobile {
+                display: block !important;
+            }
+        }
     </style>
 </head>
 <body>
@@ -143,6 +314,9 @@
                 <!-- Top Navigation -->
                 <nav class="navbar navbar-expand-lg navbar-light bg-white rounded mb-4">
                     <div class="container-fluid">
+                        <button class="btn btn-link mobile-menu-btn me-2 d-none" onclick="toggleSidebar()" style="color: #667eea;">
+                            <i class="fas fa-bars"></i>
+                        </button>
                         <span class="navbar-brand">@yield('page-title', 'Dashboard')</span>
                         <div class="navbar-nav ms-auto">
                             <span class="nav-text">
@@ -186,8 +360,49 @@
         </div>
     </div>
 
+    <!-- Sidebar Overlay for Mobile -->
+    <div class="sidebar-overlay" onclick="closeSidebar()"></div>
+
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Mobile Sidebar JavaScript -->
+    <script>
+        function toggleSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.querySelector('.sidebar-overlay');
+            
+            sidebar.classList.toggle('show');
+            overlay.classList.toggle('show');
+        }
+
+        function closeSidebar() {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.querySelector('.sidebar-overlay');
+            
+            sidebar.classList.remove('show');
+            overlay.classList.remove('show');
+        }
+
+        // Close sidebar when clicking on nav links (mobile)
+        document.addEventListener('DOMContentLoaded', function() {
+            const navLinks = document.querySelectorAll('.sidebar .nav-link');
+            navLinks.forEach(link => {
+                link.addEventListener('click', function() {
+                    if (window.innerWidth < 992) {
+                        closeSidebar();
+                    }
+                });
+            });
+
+            // Close sidebar on window resize if desktop
+            window.addEventListener('resize', function() {
+                if (window.innerWidth >= 992) {
+                    closeSidebar();
+                }
+            });
+        });
+    </script>
     
     @yield('scripts')
 </body>

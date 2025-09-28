@@ -100,9 +100,17 @@
                         @foreach(array_slice($recentUsers, 0, 5) as $user)
                             <div class="list-group-item d-flex justify-content-between align-items-center">
                                 <div>
-                                    <strong>{{ $user['first_name'] ?? 'N/A' }} {{ $user['last_name'] ?? '' }}</strong>
+                                    <strong>
+                                        @if(isset($user['name']))
+                                            {{ $user['name'] }}
+                                        @elseif(isset($user['first_name']))
+                                            {{ $user['first_name'] }} {{ $user['last_name'] ?? '' }}
+                                        @else
+                                            Unknown User
+                                        @endif
+                                    </strong>
                                     <br>
-                                    <small class="text-muted">{{ $user['email'] ?? 'N/A' }}</small>
+                                    <small class="text-muted">{{ $user['email'] ?? 'No email' }}</small>
                                 </div>
                                 <span class="badge bg-{{ $user['role'] === 'admin' ? 'danger' : ($user['role'] === 'health_worker' ? 'warning' : 'primary') }}">
                                     {{ ucfirst($user['role'] ?? 'user') }}
@@ -131,11 +139,36 @@
                             <div class="list-group-item">
                                 <div class="d-flex justify-content-between align-items-center">
                                     <div>
-                                        <strong>{{ $appointment['patient_name'] ?? 'N/A' }}</strong>
+                                        <strong>
+                                            @if(isset($appointment['user']['name']))
+                                                {{ $appointment['user']['name'] }}
+                                            @elseif(isset($appointment['user']) && is_array($appointment['user']) && isset($appointment['user']['first_name']))
+                                                {{ $appointment['user']['first_name'] }} {{ $appointment['user']['last_name'] ?? '' }}
+                                            @else
+                                                Unknown Patient
+                                            @endif
+                                        </strong>
                                         <br>
                                         <small class="text-muted">
                                             <i class="fas fa-clock me-1"></i>
-                                            {{ isset($appointment['appointment_date']) ? date('M d, Y h:i A', strtotime($appointment['appointment_date'])) : 'N/A' }}
+                                            @if(isset($appointment['date']) && isset($appointment['time']))
+                                                {{ $appointment['date'] }} at {{ $appointment['time'] }}
+                                            @elseif(isset($appointment['created_at']))
+                                                {{ date('M d, Y', strtotime($appointment['created_at'])) }}
+                                            @else
+                                                Date not available
+                                            @endif
+                                        </small>
+                                        <br>
+                                        <small class="text-muted">
+                                            <i class="fas fa-stethoscope me-1"></i>
+                                            @if(isset($appointment['service']['service_name']))
+                                                {{ $appointment['service']['service_name'] }}
+                                            @elseif(isset($appointment['service_name']))
+                                                {{ $appointment['service_name'] }}
+                                            @else
+                                                Service not available
+                                            @endif
                                         </small>
                                     </div>
                                     <span class="badge bg-{{ $appointment['status'] === 'completed' ? 'success' : ($appointment['status'] === 'confirmed' ? 'info' : ($appointment['status'] === 'cancelled' ? 'danger' : 'warning')) }}">

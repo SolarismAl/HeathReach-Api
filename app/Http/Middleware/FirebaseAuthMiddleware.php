@@ -51,7 +51,7 @@ class FirebaseAuthMiddleware
         try {
             \Log::info('Attempting to verify Firebase token...');
             
-            // Verify Firebase token
+            // Verify Firebase ID token
             $verifiedIdToken = $this->auth->verifyIdToken($token);
             $firebaseUid = $verifiedIdToken->claims()->get('sub');
             
@@ -63,7 +63,14 @@ class FirebaseAuthMiddleware
             $firestoreService = app(\App\Services\FirestoreService::class);
             \Log::info('Looking up user in Firestore with firebase_uid: ' . $firebaseUid);
             
-            $user = $firestoreService->findByField('users', 'firebase_uid', $firebaseUid);
+            // Try to get user from Firestore
+            $user = null;
+            try {
+                $user = $firestoreService->findByField('users', 'firebase_uid', $firebaseUid);
+                \Log::info('User found in Firestore: ' . json_encode($user));
+            } catch (Exception $e) {
+                \Log::warning('Firestore lookup failed: ' . $e->getMessage());
+            }
             
             if (!$user) {
                 \Log::error('User not found in Firestore with firebase_uid: ' . $firebaseUid);

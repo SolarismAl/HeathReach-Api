@@ -365,7 +365,10 @@ class FirebaseAuthController extends Controller
     public function profile(Request $request): JsonResponse
     {
         try {
-            $user = $request->user(); // From Firebase middleware
+            // Get user from middleware (set by FirebaseAuthMiddleware)
+            $user = $request->get('user');
+            
+            \Log::info('Profile request - User from middleware:', $user);
             
             if (!$user) {
                 return response()->json([
@@ -604,6 +607,8 @@ class FirebaseAuthController extends Controller
      */
     public function updateProfile(Request $request): JsonResponse
     {
+        \Log::info('UpdateProfile - Request data:', $request->all());
+        
         $validator = Validator::make($request->all(), [
             'name' => 'sometimes|required|string|max:255',
             'contact_number' => 'nullable|string|max:20',
@@ -619,9 +624,12 @@ class FirebaseAuthController extends Controller
         }
 
         try {
-            $user = $request->user();
+            // Get user from middleware (Firebase middleware sets this)
+            $user = $request->get('user');
+            \Log::info('UpdateProfile - User from middleware:', ['user' => $user]);
             
             if (!$user) {
+                \Log::error('UpdateProfile - No user found in request');
                 return response()->json([
                     'success' => false,
                     'message' => 'User not authenticated'
@@ -644,9 +652,16 @@ class FirebaseAuthController extends Controller
             }
 
             // Update in Firestore
+            \Log::info('UpdateProfile - Updating user in Firestore:', [
+                'user_id' => $user['user_id'],
+                'updateData' => $updateData
+            ]);
+            
             $updated = $this->firestoreService->updateDocument('users', $user['user_id'], $updateData);
+            \Log::info('UpdateProfile - Firestore update result:', ['updated' => $updated]);
 
             if (!$updated) {
+                \Log::error('UpdateProfile - Firestore update failed');
                 return response()->json([
                     'success' => false,
                     'message' => 'Failed to update profile'
