@@ -631,11 +631,12 @@ class WebHealthWorkerController extends Controller
         \Log::info('Request data:', $request->all());
         
         $request->validate([
-            'recipient' => 'required|in:patients,my_patients',
+            'recipient' => 'required|in:patients,my_patients,specific_patient',
             'type' => 'required|in:appointment,service,general',
             'title' => 'required|string|max:100',
             'message' => 'required|string|max:500',
-            'health_center_id' => 'nullable|string'
+            'health_center_id' => 'nullable|string',
+            'patient_id' => 'required_if:recipient,specific_patient|string'
         ]);
 
         try {
@@ -662,21 +663,28 @@ class WebHealthWorkerController extends Controller
                 }
             }
 
-            // Get all users and filter patients
-            $users = $this->firestoreService->getCollection('users');
+            // Get recipients based on selection
             $recipients = [];
 
-            foreach ($users as $userId => $userData) {
-                $userRole = $userData['role'] ?? 'patient';
-                
-                if ($userRole === 'patient') {
-                    if ($request->recipient === 'patients') {
-                        // Send to all patients
-                        $recipients[] = $userId;
-                    } elseif ($request->recipient === 'my_patients') {
-                        // For now, send to all patients since we don't have a direct patient-health worker relationship
-                        // In a real system, you'd filter based on appointments or assignments
-                        $recipients[] = $userId;
+            if ($request->recipient === 'specific_patient') {
+                // Send to specific patient
+                $recipients[] = $request->patient_id;
+            } else {
+                // Get all users and filter patients
+                $users = $this->firestoreService->getCollection('users');
+
+                foreach ($users as $userId => $userData) {
+                    $userRole = $userData['role'] ?? 'patient';
+                    
+                    if ($userRole === 'patient') {
+                        if ($request->recipient === 'patients') {
+                            // Send to all patients
+                            $recipients[] = $userId;
+                        } elseif ($request->recipient === 'my_patients') {
+                            // For now, send to all patients since we don't have a direct patient-health worker relationship
+                            // In a real system, you'd filter based on appointments or assignments
+                            $recipients[] = $userId;
+                        }
                     }
                 }
             }
@@ -719,6 +727,53 @@ class WebHealthWorkerController extends Controller
             
             return redirect()->route('health-worker.notifications')
                 ->with('error', 'Failed to send alert: ' . $e->getMessage());
+        }
+    }
+
+    public function getPatients()
+    {
+        try {
+            \Log::info('=== GET PATIENTS API CALL ===');
+            
+            // Get all users and filter patients
+            $users = $this->firestoreService->getCollection('users');
+            $patients = [];
+
+            foreach ($users as $userId => $userData) {
+                $userRole = $userData['role'] ?? 'patient';
+                
+                if ($userRole === 'patient') {
+                    $patients[] = [
+                        'id' => $userId,
+                        'first_name' => $userData['first_name'] ?? 'Unknown',
+                        'last_name' => $userData['last_name'] ?? 'User',
+                        'email' => $userData['email'] ?? 'No email',
+                        'phone' => $userData['contact_number'] ?? $userData['phone'] ?? 'No phone'
+                    ];
+                }
+            }
+
+            // Sort patients by name
+            usort($patients, function($a, $b) {
+                return strcmp($a['first_name'] . ' ' . $a['last_name'], $b['first_name'] . ' ' . $b['last_name']);
+            });
+
+            \Log::info('Found patients:', ['count' => count($patients)]);
+
+            return response()->json([
+                'success' => true,
+                'patients' => $patients,
+                'count' => count($patients)
+            ]);
+
+        } catch (\Exception $e) {
+            \Log::error('Error fetching patients:', ['error' => $e->getMessage()]);
+            
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to fetch patients: ' . $e->getMessage(),
+                'patients' => []
+            ], 500);
         }
     }
 }

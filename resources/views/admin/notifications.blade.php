@@ -94,7 +94,6 @@
                         <label for="priority" class="form-label">Priority Level</label>
                         <select class="form-select" id="priority" name="priority">
                             <option value="normal" {{ old('priority') == 'normal' ? 'selected' : '' }}>Normal</option>
-                            <option value="high" {{ old('priority') == 'high' ? 'selected' : '' }}>High Priority</option>
                             <option value="urgent" {{ old('priority') == 'urgent' ? 'selected' : '' }}>Urgent</option>
                         </select>
                         <div class="form-text">High and urgent alerts will be highlighted in the mobile app</div>
@@ -102,8 +101,13 @@
 
                     <!-- Send Button -->
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-primary btn-lg">
-                            <i class="fas fa-paper-plane me-2"></i>Send Alert to Mobile App
+                        <button type="submit" class="btn btn-primary btn-lg" id="sendButton">
+                            <span id="sendButtonText">
+                                <i class="fas fa-paper-plane me-2"></i>Send Alert to Mobile App
+                            </span>
+                            <span id="sendButtonLoading" style="display: none;">
+                                <i class="fas fa-spinner fa-spin me-2"></i>Sending Alert...
+                            </span>
                         </button>
                     </div>
                 </form>
@@ -111,6 +115,7 @@
         </div>
     </div>
 
+{{ ... }}
     <div class="col-md-4">
         <!-- Preview Card -->
         <div class="card">
@@ -344,6 +349,18 @@ document.getElementById('message').addEventListener('input', function() {
     } else {
         formText.classList.remove('text-warning');
     }
+});
+
+// Form submission with loading state
+document.querySelector('form').addEventListener('submit', function() {
+    const sendButton = document.getElementById('sendButton');
+    const sendButtonText = document.getElementById('sendButtonText');
+    const sendButtonLoading = document.getElementById('sendButtonLoading');
+    
+    // Show loading state
+    sendButton.disabled = true;
+    sendButtonText.style.display = 'none';
+    sendButtonLoading.style.display = 'inline';
 });
 </script>
 @endsection

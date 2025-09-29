@@ -3,6 +3,10 @@
 @section('title', 'Send Alerts - Health Worker - HealthReach')
 @section('page-title', 'Send Alerts to Patients')
 
+@push('head')
+<meta name="csrf-token" content="{{ csrf_token() }}">
+@endpush
+
 @section('content')
 <div class="row">
     <div class="col-md-8">
@@ -31,15 +35,33 @@
                     <!-- Recipient Selection -->
                     <div class="mb-3">
                         <label for="recipient" class="form-label">Send To</label>
-                        <select class="form-select @error('recipient') is-invalid @enderror" id="recipient" name="recipient" required>
+                        <select class="form-select @error('recipient') is-invalid @enderror" id="recipient" name="recipient" required onchange="togglePatientSelection()">
                             <option value="">Select Recipients</option>
                             <option value="patients" {{ old('recipient') == 'patients' ? 'selected' : '' }}>All Patients</option>
                             <option value="my_patients" {{ old('recipient') == 'my_patients' ? 'selected' : '' }}>My Patients Only</option>
+                            <option value="specific_patient" {{ old('recipient') == 'specific_patient' ? 'selected' : '' }}>Specific Patient</option>
                         </select>
                         @error('recipient')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                         <div class="form-text">Health workers can only send alerts to patients</div>
+                    </div>
+
+                    <!-- Specific Patient Selection (Hidden by default) -->
+                    <div class="mb-3" id="patientSelectionDiv" style="display: none;">
+                        <label for="patient_id" class="form-label">Select Patient</label>
+                        <div class="input-group">
+                            <select class="form-select @error('patient_id') is-invalid @enderror" id="patient_id" name="patient_id">
+                                <option value="">Loading patients...</option>
+                            </select>
+                            <button type="button" class="btn btn-outline-secondary" onclick="loadPatients()" id="refreshPatientsBtn">
+                                <i class="fas fa-sync-alt"></i>
+                            </button>
+                        </div>
+                        @error('patient_id')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                        <div class="form-text">Select a specific patient to send the alert to</div>
                     </div>
 
                     <!-- Notification Type -->
@@ -104,8 +126,13 @@
 
                     <!-- Send Button -->
                     <div class="d-grid">
-                        <button type="submit" class="btn btn-success btn-lg">
-                            <i class="fas fa-paper-plane me-2"></i>Send Alert to Patients
+                        <button type="submit" class="btn btn-success btn-lg" id="sendButton">
+                            <span id="sendButtonText">
+                                <i class="fas fa-paper-plane me-2"></i>Send Alert to Patients
+                            </span>
+                            <span id="sendButtonLoading" style="display: none;">
+                                <i class="fas fa-spinner fa-spin me-2"></i>Sending Alert...
+                            </span>
                         </button>
                     </div>
                 </form>
@@ -252,6 +279,80 @@
 </style>
 
 <script>
+// Patient selection functionality
+function togglePatientSelection() {
+    const recipientSelect = document.getElementById('recipient');
+    const patientSelectionDiv = document.getElementById('patientSelectionDiv');
+    
+    if (recipientSelect.value === 'specific_patient') {
+        patientSelectionDiv.style.display = 'block';
+        loadPatients(); // Load patients when shown
+    } else {
+        patientSelectionDiv.style.display = 'none';
+    }
+}
+
+// Load patients from API
+async function loadPatients() {
+    const patientSelect = document.getElementById('patient_id');
+    const refreshBtn = document.getElementById('refreshPatientsBtn');
+    
+    // Show loading state
+    patientSelect.innerHTML = '<option value="">Loading patients...</option>';
+    refreshBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    refreshBtn.disabled = true;
+    
+    try {
+        // Make API call to get patients
+        const response = await fetch('/health-worker/api/patients', {
+            method: 'GET',
+            headers: {
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                'Accept': 'application/json',
+            }
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            
+            // Clear and populate select
+            patientSelect.innerHTML = '<option value="">Select a patient</option>';
+            
+            if (data.patients && data.patients.length > 0) {
+                data.patients.forEach(patient => {
+                    const option = document.createElement('option');
+                    option.value = patient.id;
+                    option.textContent = `${patient.first_name} ${patient.last_name} (${patient.email})`;
+                    patientSelect.appendChild(option);
+                });
+            } else {
+                patientSelect.innerHTML = '<option value="">No patients found</option>';
+            }
+        } else {
+            patientSelect.innerHTML = '<option value="">Error loading patients</option>';
+        }
+    } catch (error) {
+        console.error('Error loading patients:', error);
+        patientSelect.innerHTML = '<option value="">Error loading patients</option>';
+    } finally {
+        // Reset refresh button
+        refreshBtn.innerHTML = '<i class="fas fa-sync-alt"></i>';
+        refreshBtn.disabled = false;
+    }
+}
+
+// Form submission with loading state
+document.querySelector('form').addEventListener('submit', function() {
+    const sendButton = document.getElementById('sendButton');
+    const sendButtonText = document.getElementById('sendButtonText');
+    const sendButtonLoading = document.getElementById('sendButtonLoading');
+    
+    // Show loading state
+    sendButton.disabled = true;
+    sendButtonText.style.display = 'none';
+    sendButtonLoading.style.display = 'inline';
+});
+
 // Live preview functionality
 document.getElementById('title').addEventListener('input', function() {
     document.getElementById('previewTitle').textContent = this.value || 'Alert Title';

@@ -322,4 +322,7 @@ Route::middleware(['web.auth:health_worker'])->prefix('health-worker')->name('he
     // Notifications/Alerts
     Route::get('/notifications', [WebHealthWorkerController::class, 'notifications'])->name('notifications');
     Route::post('/notifications/send', [WebHealthWorkerController::class, 'sendNotification'])->name('notifications.send');
+    
+    // API for patient selection
+    Route::get('/api/patients', [WebHealthWorkerController::class, 'getPatients'])->name('api.patients');
 });
