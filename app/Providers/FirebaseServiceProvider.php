@@ -6,6 +6,7 @@ use Illuminate\Support\ServiceProvider;
 use App\Services\FirebaseService;
 use App\Services\FirestoreService;
 use App\Services\ActivityLogService;
+use App\Services\PasswordResetService;
 use Google\Cloud\Firestore\FirestoreClient;
 
 class FirebaseServiceProvider extends ServiceProvider
@@ -33,6 +34,10 @@ class FirebaseServiceProvider extends ServiceProvider
 
         $this->app->singleton(ActivityLogService::class, function ($app) {
             return new ActivityLogService($app->make(FirestoreService::class));
+        });
+
+        $this->app->singleton(PasswordResetService::class, function ($app) {
+            return new PasswordResetService($app->make(FirestoreService::class));
         });
     }
 

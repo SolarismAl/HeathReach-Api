@@ -9,6 +9,7 @@ use Illuminate\Support\Str;
 use App\Services\FirebaseService;
 use App\Services\FirestoreService;
 use App\Services\ActivityLogService;
+use App\Services\PasswordResetService;
 use App\DataTransferObjects\ApiResponse;
 use App\DataTransferObjects\UserData;
 use Exception;
@@ -19,15 +20,18 @@ class FirebaseAuthController extends Controller
     private FirebaseService $firebaseService;
     private FirestoreService $firestoreService;
     private ActivityLogService $activityLogService;
+    private PasswordResetService $passwordResetService;
 
     public function __construct(
         FirebaseService $firebaseService,
         FirestoreService $firestoreService,
-        ActivityLogService $activityLogService
+        ActivityLogService $activityLogService,
+        PasswordResetService $passwordResetService
     ) {
         $this->firebaseService = $firebaseService;
         $this->firestoreService = $firestoreService;
         $this->activityLogService = $activityLogService;
+        $this->passwordResetService = $passwordResetService;
     }
 
     /**
@@ -565,11 +569,15 @@ class FirebaseAuthController extends Controller
      */
     public function forgotPassword(Request $request): JsonResponse
     {
+        \Log::info('=== FORGOT PASSWORD REQUEST ===');
+        \Log::info('Email: ' . $request->email);
+
         $validator = Validator::make($request->all(), [
             'email' => 'required|string|email',
         ]);
 
         if ($validator->fails()) {
+            \Log::error('Forgot password validation failed:', $validator->errors()->toArray());
             return response()->json([
                 'success' => false,
                 'message' => 'Validation failed',
@@ -582,22 +590,176 @@ class FirebaseAuthController extends Controller
             $user = $this->firestoreService->findByField('users', 'email', $request->email);
             
             if (!$user) {
+                \Log::info('User not found for email: ' . $request->email);
+                // For security, we still return success even if user doesn't exist
+                // This prevents email enumeration attacks
+                return response()->json([
+                    'success' => true,
+                    'message' => 'If an account with this email exists, password reset instructions have been sent'
+                ]);
+            }
+
+            \Log::info('User found, creating password reset token');
+
+            // Create password reset token and send email
+            $result = $this->passwordResetService->createPasswordResetToken($user, $request->email);
+
+            if (!$result['success']) {
+                \Log::error('Failed to create password reset token:', $result);
                 return response()->json([
                     'success' => false,
-                    'message' => 'No user found with this email address'
+                    'message' => 'Failed to send password reset email. Please try again later.'
+                ], 500);
+            }
+
+            // Log activity
+            $this->activityLogService->log(
+                $user['user_id'],
+                'password_reset_requested',
+                'Password reset email sent',
+                $request->ip(),
+                $request->userAgent()
+            );
+
+            \Log::info('Password reset email sent successfully');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Password reset instructions have been sent to your email address'
+            ]);
+
+        } catch (Exception $e) {
+            \Log::error('Forgot password exception:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to process password reset request. Please try again later.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Reset password with token
+     */
+    public function resetPassword(Request $request): JsonResponse
+    {
+        \Log::info('=== RESET PASSWORD REQUEST ===');
+
+        $validator = Validator::make($request->all(), [
+            'token' => 'required|string',
+            'password' => 'required|string|min:6',
+            'password_confirmation' => 'required|string|same:password',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Verify reset token
+            $tokenResult = $this->passwordResetService->verifyResetToken($request->token);
+
+            if (!$tokenResult['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $tokenResult['message']
+                ], 400);
+            }
+
+            $resetToken = $tokenResult['data'];
+
+            // Get user
+            $user = $this->firestoreService->getDocument('users', $resetToken['user_id']);
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not found'
                 ], 404);
             }
 
-            // For now, just return success (in production, you'd send an actual email)
+            // Update password in Firebase Auth
+            $updateResult = $this->firebaseService->updateUserPassword($user['firebase_uid'], $request->password);
+            
+            if (!$updateResult['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to update password: ' . ($updateResult['error'] ?? 'Unknown error')
+                ], 500);
+            }
+
+            // Mark token as used
+            $this->passwordResetService->markTokenAsUsed($resetToken['document_id']);
+
+            // Log activity
+            $this->activityLogService->log(
+                $user['user_id'],
+                'password_reset_completed',
+                'Password reset completed successfully',
+                $request->ip(),
+                $request->userAgent()
+            );
+
+            \Log::info('Password reset completed successfully');
+
             return response()->json([
                 'success' => true,
-                'message' => 'Password reset instructions have been sent to your email'
+                'message' => 'Password has been reset successfully'
+            ]);
+
+        } catch (Exception $e) {
+            \Log::error('Reset password exception:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to reset password. Please try again later.'
+            ], 500);
+        }
+    }
+
+    /**
+     * Verify reset token (for frontend validation)
+     */
+    public function verifyResetToken(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'token' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $result = $this->passwordResetService->verifyResetToken($request->token);
+            
+            if (!$result['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => $result['message']
+                ], 400);
+            }
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Token is valid'
             ]);
 
         } catch (Exception $e) {
             return response()->json([
                 'success' => false,
-                'message' => 'Failed to process password reset: ' . $e->getMessage()
+                'message' => 'Token verification failed'
             ], 500);
         }
     }
@@ -707,6 +869,211 @@ class FirebaseAuthController extends Controller
             return response()->json([
                 'success' => false,
                 'message' => 'Profile update failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Change user password
+     */
+    public function changePassword(Request $request): JsonResponse
+    {
+        \Log::info('ChangePassword - Request received');
+        
+        $validator = Validator::make($request->all(), [
+            'current_password' => 'required|string',
+            'new_password' => 'required|string|min:6',
+            'new_password_confirmation' => 'required|string|same:new_password',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Get user from middleware
+            $user = $request->get('user');
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+
+            // Verify current password by attempting to sign in with it
+            try {
+                $verifyResult = $this->firebaseService->verifyUserPassword($user['email'], $request->current_password);
+                if (!$verifyResult['success']) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Current password is incorrect'
+                    ], 422);
+                }
+            } catch (Exception $e) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Current password is incorrect'
+                ], 422);
+            }
+
+            // Update password in Firebase Auth
+            $updateResult = $this->firebaseService->updateUserPassword($user['firebase_uid'], $request->new_password);
+            
+            if (!$updateResult['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to update password: ' . ($updateResult['error'] ?? 'Unknown error')
+                ], 500);
+            }
+
+            // Log activity
+            $this->activityLogService->log(
+                $user['user_id'],
+                'password_changed',
+                'User changed password',
+                $request->ip(),
+                $request->userAgent()
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Password changed successfully'
+            ]);
+
+        } catch (Exception $e) {
+            \Log::error('ChangePassword exception:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Password change failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Set password for Google users (who don't have a password yet)
+     */
+    public function setPassword(Request $request): JsonResponse
+    {
+        \Log::info('SetPassword - Request received');
+        
+        $validator = Validator::make($request->all(), [
+            'password' => 'required|string|min:6',
+            'password_confirmation' => 'required|string|same:password',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Get user from middleware
+            $user = $request->get('user');
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+
+            // Check if user already has a password (by trying to verify with a dummy password)
+            try {
+                $hasPassword = $this->firebaseService->userHasPassword($user['firebase_uid']);
+                if ($hasPassword) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'User already has a password. Use change password instead.'
+                    ], 422);
+                }
+            } catch (Exception $e) {
+                // If we can't determine, continue with setting password
+                \Log::info('Could not determine if user has password, proceeding with set password');
+            }
+
+            // Set password in Firebase Auth
+            $updateResult = $this->firebaseService->updateUserPassword($user['firebase_uid'], $request->password);
+            
+            if (!$updateResult['success']) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to set password: ' . ($updateResult['error'] ?? 'Unknown error')
+                ], 500);
+            }
+
+            // Update user record to indicate they now have a password
+            $this->firestoreService->updateDocument('users', $user['user_id'], [
+                'has_password' => true,
+                'updated_at' => now()->toISOString()
+            ]);
+
+            // Log activity
+            $this->activityLogService->log(
+                $user['user_id'],
+                'password_set',
+                'User set password for Google account',
+                $request->ip(),
+                $request->userAgent()
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Password set successfully'
+            ]);
+
+        } catch (Exception $e) {
+            \Log::error('SetPassword exception:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Set password failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Check if user has a password set
+     */
+    public function hasPassword(Request $request): JsonResponse
+    {
+        try {
+            // Get user from middleware
+            $user = $request->get('user');
+            
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not authenticated'
+                ], 401);
+            }
+
+            // Check if user has password
+            $hasPassword = $this->firebaseService->userHasPassword($user['firebase_uid']);
+
+            return response()->json([
+                'success' => true,
+                'data' => [
+                    'has_password' => $hasPassword
+                ]
+            ]);
+
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to check password status: ' . $e->getMessage()
             ], 500);
         }
     }

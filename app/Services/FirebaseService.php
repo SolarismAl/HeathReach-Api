@@ -300,4 +300,82 @@ class FirebaseService
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
+
+    /**
+     * Verify user password by attempting to sign in
+     */
+    public function verifyUserPassword(string $email, string $password): array
+    {
+        try {
+            // Use Firebase Auth REST API to verify password
+            $apiKey = config('firebase.api_key');
+            $url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={$apiKey}";
+            
+            $data = [
+                'email' => $email,
+                'password' => $password,
+                'returnSecureToken' => true
+            ];
+
+            $ch = curl_init();
+            curl_setopt($ch, CURLOPT_URL, $url);
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_HTTPHEADER, [
+                'Content-Type: application/json'
+            ]);
+            curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            
+            $response = curl_exec($ch);
+            $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+
+            if ($httpCode === 200) {
+                $result = json_decode($response, true);
+                if (isset($result['localId'])) {
+                    return ['success' => true, 'uid' => $result['localId']];
+                }
+            }
+
+            return ['success' => false, 'error' => 'Invalid password'];
+        } catch (Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Update user password
+     */
+    public function updateUserPassword(string $uid, string $newPassword): array
+    {
+        try {
+            $this->auth->updateUser($uid, ['password' => $newPassword]);
+            return ['success' => true];
+        } catch (Exception $e) {
+            return ['success' => false, 'error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Check if user has a password set
+     */
+    public function userHasPassword(string $uid): bool
+    {
+        try {
+            $user = $this->auth->getUser($uid);
+            
+            // Check if user has password provider
+            foreach ($user->providerData as $provider) {
+                if ($provider->providerId === 'password') {
+                    return true;
+                }
+            }
+            
+            return false;
+        } catch (Exception $e) {
+            \Log::error('Error checking if user has password: ' . $e->getMessage());
+            return false;
+        }
+    }
 }

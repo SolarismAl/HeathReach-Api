@@ -860,6 +860,40 @@ class FirestoreService
         }
     }
 
+    /**
+     * Query collection with conditions
+     */
+    public function queryCollection(string $collection, array $conditions = []): array
+    {
+        try {
+            $query = $this->firestore->collection($collection);
+            
+            // Apply conditions
+            foreach ($conditions as $condition) {
+                if (count($condition) === 3) {
+                    [$field, $operator, $value] = $condition;
+                    $query = $query->where($field, $operator, $value);
+                }
+            }
+            
+            $documents = $query->documents();
+            $results = [];
+            
+            foreach ($documents as $document) {
+                if ($document->exists()) {
+                    $data = $document->data();
+                    $data['document_id'] = $document->id(); // Add document ID for reference
+                    $results[] = $data;
+                }
+            }
+            
+            return $results;
+        } catch (\Exception $e) {
+            Log::error('Firestore query error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
     private function getAppointmentsByStatus(string $status): array
     {
         try {

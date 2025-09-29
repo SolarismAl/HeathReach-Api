@@ -171,6 +171,13 @@ Route::prefix('auth')->group(function () {
     Route::get('profile', [FirebaseAuthController::class, 'profile'])->middleware('firebase.auth');
     Route::put('profile', [FirebaseAuthController::class, 'updateProfile'])->middleware('firebase.auth');
     Route::post('forgot-password', [FirebaseAuthController::class, 'forgotPassword']);
+    Route::post('reset-password', [FirebaseAuthController::class, 'resetPassword']);
+    Route::post('verify-reset-token', [FirebaseAuthController::class, 'verifyResetToken']);
+    
+    // Password management routes
+    Route::post('change-password', [FirebaseAuthController::class, 'changePassword'])->middleware('firebase.auth');
+    Route::post('set-password', [FirebaseAuthController::class, 'setPassword'])->middleware('firebase.auth');
+    Route::get('has-password', [FirebaseAuthController::class, 'hasPassword'])->middleware('firebase.auth');
 });
 
 // User management routes using Firestore
