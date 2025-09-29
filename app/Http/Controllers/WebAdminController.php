@@ -569,15 +569,27 @@ class WebAdminController extends Controller
             $users = $this->firestoreService->getCollection('users');
             $recipients = [];
 
+            \Log::info('Processing users for notification recipients:', ['total_users' => count($users)]);
+
             foreach ($users as $userId => $userData) {
                 $userRole = $userData['role'] ?? 'patient';
                 
+                \Log::info('Processing user:', [
+                    'user_id' => $userId,
+                    'role' => $userRole,
+                    'firebase_uid' => $userData['firebase_uid'] ?? 'not_set',
+                    'email' => $userData['email'] ?? 'no_email'
+                ]);
+                
+                // Use firebase_uid if available, otherwise fall back to document ID
+                $targetUserId = $userData['firebase_uid'] ?? $userId;
+                
                 if ($request->recipient === 'all') {
-                    $recipients[] = $userId;
+                    $recipients[] = $targetUserId;
                 } elseif ($request->recipient === 'patients' && $userRole === 'patient') {
-                    $recipients[] = $userId;
+                    $recipients[] = $targetUserId;
                 } elseif ($request->recipient === 'health_workers' && $userRole === 'health_worker') {
-                    $recipients[] = $userId;
+                    $recipients[] = $targetUserId;
                 }
             }
 
@@ -588,6 +600,12 @@ class WebAdminController extends Controller
             foreach ($recipients as $userId) {
                 $notificationData['user_id'] = $userId;
                 $notificationData['recipient_role'] = $request->recipient === 'all' ? null : ($request->recipient === 'patients' ? 'patient' : 'health_worker');
+                
+                \Log::info('Creating notification for user:', [
+                    'user_id' => $userId,
+                    'title' => $notificationData['title'],
+                    'recipient_type' => $request->recipient
+                ]);
                 
                 $result = $this->firestoreService->createDocument('notifications', $notificationData);
                 if ($result) {

@@ -48,8 +48,11 @@ class NotificationController extends Controller
             if ($userRole === 'admin' && $request->has('all')) {
                 // Get all notifications (admin only)
                 $result = $this->firestoreService->getAllNotifications();
+                \Log::info('Fetching ALL notifications for admin');
             } else {
+                \Log::info('Fetching notifications for specific user:', ['user_id' => $userId]);
                 $result = $this->firestoreService->getNotificationsByUser($userId);
+                \Log::info('Notification query result:', ['success' => $result['success'], 'count' => count($result['data'] ?? [])]);
             }
 
             if (!$result['success']) {

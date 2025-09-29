@@ -669,6 +669,10 @@ class WebHealthWorkerController extends Controller
             if ($request->recipient === 'specific_patient') {
                 // Send to specific patient
                 $recipients[] = $request->patient_id;
+                \Log::info('Sending to specific patient:', [
+                    'patient_id' => $request->patient_id,
+                    'recipients_count' => 1
+                ]);
             } else {
                 // Get all users and filter patients
                 $users = $this->firestoreService->getCollection('users');
@@ -677,13 +681,16 @@ class WebHealthWorkerController extends Controller
                     $userRole = $userData['role'] ?? 'patient';
                     
                     if ($userRole === 'patient') {
+                        // Use firebase_uid if available, otherwise fall back to document ID
+                        $targetUserId = $userData['firebase_uid'] ?? $userId;
+                        
                         if ($request->recipient === 'patients') {
                             // Send to all patients
-                            $recipients[] = $userId;
+                            $recipients[] = $targetUserId;
                         } elseif ($request->recipient === 'my_patients') {
                             // For now, send to all patients since we don't have a direct patient-health worker relationship
                             // In a real system, you'd filter based on appointments or assignments
-                            $recipients[] = $userId;
+                            $recipients[] = $targetUserId;
                         }
                     }
                 }
@@ -743,8 +750,11 @@ class WebHealthWorkerController extends Controller
                 $userRole = $userData['role'] ?? 'patient';
                 
                 if ($userRole === 'patient') {
+                    // Use firebase_uid as the ID for consistency
+                    $patientId = $userData['firebase_uid'] ?? $userId;
+                    
                     $patients[] = [
-                        'id' => $userId,
+                        'id' => $patientId,
                         'first_name' => $userData['first_name'] ?? 'Unknown',
                         'last_name' => $userData['last_name'] ?? 'User',
                         'email' => $userData['email'] ?? 'No email',
