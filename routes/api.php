@@ -37,6 +37,37 @@ Route::get('test/status', function() {
     ]);
 });
 
+// Debug forgot password endpoint (no email sending)
+Route::post('test/forgot-password', function(Request $request) {
+    try {
+        $email = $request->input('email');
+        
+        if (!$email) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Email is required'
+            ], 400);
+        }
+        
+        // Simulate the forgot password process without actually sending email
+        return response()->json([
+            'success' => true,
+            'message' => 'Password reset instructions have been sent to your email address',
+            'debug' => [
+                'email' => $email,
+                'timestamp' => now(),
+                'note' => 'This is a debug endpoint - no email was actually sent'
+            ]
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'message' => 'Debug forgot password failed',
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
 Route::get('test/quick-appointments', function() {
     return response()->json([
         'success' => true,

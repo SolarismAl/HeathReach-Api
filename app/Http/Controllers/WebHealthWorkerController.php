@@ -588,4 +588,137 @@ class WebHealthWorkerController extends Controller
             'total_services' => $totalServices,
         ];
     }
+
+    public function notifications()
+    {
+        \Log::info('=== HEALTH WORKER NOTIFICATIONS PAGE LOADED ===');
+        
+        // Get health centers for the form
+        $healthCenters = $this->firestoreService->getCollection('health_centers');
+        
+        // Get statistics for the page
+        $currentUserId = session('user')['firebase_uid'] ?? null;
+        $allNotifications = $this->firestoreService->getCollection('notifications');
+        $allUsers = $this->firestoreService->getCollection('users');
+        
+        // Count notifications sent by this health worker
+        $myNotifications = 0;
+        foreach ($allNotifications as $notification) {
+            if (($notification['sender_id'] ?? null) === $currentUserId) {
+                $myNotifications++;
+            }
+        }
+        
+        // Count patients
+        $myPatients = 0;
+        foreach ($allUsers as $user) {
+            if (($user['role'] ?? 'patient') === 'patient') {
+                $myPatients++;
+            }
+        }
+        
+        $stats = [
+            'my_notifications' => $myNotifications,
+            'my_patients' => $myPatients
+        ];
+        
+        return view('health-worker.notifications', compact('healthCenters', 'stats'));
+    }
+
+    public function sendNotification(Request $request)
+    {
+        \Log::info('=== HEALTH WORKER SEND NOTIFICATION ===');
+        \Log::info('Request data:', $request->all());
+        
+        $request->validate([
+            'recipient' => 'required|in:patients,my_patients',
+            'type' => 'required|in:appointment,service,general',
+            'title' => 'required|string|max:100',
+            'message' => 'required|string|max:500',
+            'health_center_id' => 'nullable|string'
+        ]);
+
+        try {
+            // Prepare notification data
+            $notificationData = [
+                'title' => $request->title,
+                'message' => $request->message,
+                'type' => $request->type,
+                'priority' => 'normal',
+                'created_at' => now()->toISOString(),
+                'is_read' => false,
+                'sender_role' => 'health_worker',
+                'sender_id' => session('user')['firebase_uid'] ?? 'health_worker'
+            ];
+
+            // Add health center data if provided
+            if ($request->health_center_id) {
+                $healthCenter = $this->firestoreService->getDocument('health_centers', $request->health_center_id);
+                if ($healthCenter) {
+                    $notificationData['data'] = [
+                        'health_center_id' => $request->health_center_id,
+                        'health_center_name' => $healthCenter['name'] ?? 'Unknown'
+                    ];
+                }
+            }
+
+            // Get all users and filter patients
+            $users = $this->firestoreService->getCollection('users');
+            $recipients = [];
+
+            foreach ($users as $userId => $userData) {
+                $userRole = $userData['role'] ?? 'patient';
+                
+                if ($userRole === 'patient') {
+                    if ($request->recipient === 'patients') {
+                        // Send to all patients
+                        $recipients[] = $userId;
+                    } elseif ($request->recipient === 'my_patients') {
+                        // For now, send to all patients since we don't have a direct patient-health worker relationship
+                        // In a real system, you'd filter based on appointments or assignments
+                        $recipients[] = $userId;
+                    }
+                }
+            }
+
+            \Log::info('Sending notification to recipients:', ['count' => count($recipients), 'type' => $request->recipient]);
+
+            // Send notification to each recipient
+            $successCount = 0;
+            foreach ($recipients as $userId) {
+                $notificationData['user_id'] = $userId;
+                $notificationData['recipient_role'] = 'patient';
+                
+                $result = $this->firestoreService->createDocument('notifications', $notificationData);
+                if ($result) {
+                    $successCount++;
+                }
+            }
+
+            // Log the activity
+            $this->activityLogService->log(
+                session('user')['firebase_uid'] ?? 'health_worker',
+                'notification_sent',
+                'notifications',
+                null,
+                [
+                    'title' => $request->title,
+                    'type' => $request->type,
+                    'recipient' => $request->recipient,
+                    'recipients_count' => $successCount
+                ]
+            );
+
+            \Log::info('Notification sent successfully:', ['recipients' => $successCount]);
+            
+            return redirect()->route('health-worker.notifications')
+                ->with('success', "Alert sent successfully to {$successCount} patients!");
+
+        } catch (\Exception $e) {
+            \Log::error('Error sending notification:', ['error' => $e->getMessage()]);
+            
+            return redirect()->route('health-worker.notifications')
+                ->with('error', 'Failed to send alert: ' . $e->getMessage());
+        }
+    }
 }

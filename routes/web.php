@@ -47,6 +47,10 @@ Route::middleware(['web.auth:admin'])->prefix('admin')->name('admin.')->group(fu
     Route::get('/appointments', [WebAdminController::class, 'appointments'])->name('appointments');
     Route::put('/appointments/{id}/status', [WebAdminController::class, 'updateAppointmentStatus'])->name('appointments.update-status');
     
+    // Notifications/Alerts
+    Route::get('/notifications', [WebAdminController::class, 'notifications'])->name('notifications');
+    Route::post('/notifications/send', [WebAdminController::class, 'sendNotification'])->name('notifications.send');
+    
     // Activity Logs
     Route::get('/logs', [WebAdminController::class, 'logs'])->name('logs');
     
@@ -314,4 +318,8 @@ Route::middleware(['web.auth:health_worker'])->prefix('health-worker')->name('he
     Route::get('/services/{id}/edit', [WebHealthWorkerController::class, 'editService'])->name('services.edit');
     Route::put('/services/{id}', [WebHealthWorkerController::class, 'updateService'])->name('services.update');
     Route::delete('/services/{id}', [WebHealthWorkerController::class, 'deleteService'])->name('services.delete');
+    
+    // Notifications/Alerts
+    Route::get('/notifications', [WebHealthWorkerController::class, 'notifications'])->name('notifications');
+    Route::post('/notifications/send', [WebHealthWorkerController::class, 'sendNotification'])->name('notifications.send');
 });

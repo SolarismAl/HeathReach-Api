@@ -280,6 +280,9 @@
                         <a class="nav-link {{ request()->routeIs('admin.appointments*') ? 'active' : '' }}" href="{{ route('admin.appointments') }}">
                             <i class="fas fa-calendar-check me-2"></i> Appointments
                         </a>
+                        <a class="nav-link {{ request()->routeIs('admin.notifications*') ? 'active' : '' }}" href="{{ route('admin.notifications') }}">
+                            <i class="fas fa-bell me-2"></i> Send Alerts
+                        </a>
                         <a class="nav-link {{ request()->routeIs('admin.logs*') ? 'active' : '' }}" href="{{ route('admin.logs') }}">
                             <i class="fas fa-list-alt me-2"></i> Activity Logs
                         </a>
@@ -295,6 +298,9 @@
                         </a>
                         <a class="nav-link {{ request()->routeIs('health-worker.services*') ? 'active' : '' }}" href="{{ route('health-worker.services') }}">
                             <i class="fas fa-stethoscope me-2"></i> Services
+                        </a>
+                        <a class="nav-link {{ request()->routeIs('health-worker.notifications*') ? 'active' : '' }}" href="{{ route('health-worker.notifications') }}">
+                            <i class="fas fa-bell me-2"></i> Send Alerts
                         </a>
                     @endif
                     

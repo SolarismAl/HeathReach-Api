@@ -525,4 +525,100 @@ class WebAdminController extends Controller
         \Log::info('No valid patient name found, returning Unknown User');
         return 'Unknown User';
     }
+
+    public function notifications()
+    {
+        \Log::info('=== ADMIN NOTIFICATIONS PAGE LOADED ===');
+        
+        // Get statistics for the page
+        $stats = [
+            'total_notifications' => count($this->firestoreService->getCollection('notifications')),
+            'active_users' => count($this->firestoreService->getCollection('users'))
+        ];
+        
+        return view('admin.notifications', compact('stats'));
+    }
+
+    public function sendNotification(Request $request)
+    {
+        \Log::info('=== ADMIN SEND NOTIFICATION ===');
+        \Log::info('Request data:', $request->all());
+        
+        $request->validate([
+            'recipient' => 'required|in:all,patients,health_workers',
+            'type' => 'required|in:admin,general,appointment,service',
+            'title' => 'required|string|max:100',
+            'message' => 'required|string|max:500',
+            'priority' => 'nullable|in:normal,high,urgent'
+        ]);
+
+        try {
+            // Prepare notification data
+            $notificationData = [
+                'title' => $request->title,
+                'message' => $request->message,
+                'type' => $request->type,
+                'priority' => $request->priority ?? 'normal',
+                'created_at' => now()->toISOString(),
+                'is_read' => false,
+                'sender_role' => 'admin',
+                'sender_id' => session('user')['firebase_uid'] ?? 'admin'
+            ];
+
+            // Determine recipients based on selection
+            $users = $this->firestoreService->getCollection('users');
+            $recipients = [];
+
+            foreach ($users as $userId => $userData) {
+                $userRole = $userData['role'] ?? 'patient';
+                
+                if ($request->recipient === 'all') {
+                    $recipients[] = $userId;
+                } elseif ($request->recipient === 'patients' && $userRole === 'patient') {
+                    $recipients[] = $userId;
+                } elseif ($request->recipient === 'health_workers' && $userRole === 'health_worker') {
+                    $recipients[] = $userId;
+                }
+            }
+
+            \Log::info('Sending notification to recipients:', ['count' => count($recipients), 'type' => $request->recipient]);
+
+            // Send notification to each recipient
+            $successCount = 0;
+            foreach ($recipients as $userId) {
+                $notificationData['user_id'] = $userId;
+                $notificationData['recipient_role'] = $request->recipient === 'all' ? null : ($request->recipient === 'patients' ? 'patient' : 'health_worker');
+                
+                $result = $this->firestoreService->createDocument('notifications', $notificationData);
+                if ($result) {
+                    $successCount++;
+                }
+            }
+
+            // Log the activity
+            $this->activityLogService->log(
+                session('user')['firebase_uid'] ?? 'admin',
+                'notification_sent',
+                'notifications',
+                null,
+                [
+                    'title' => $request->title,
+                    'type' => $request->type,
+                    'recipient' => $request->recipient,
+                    'recipients_count' => $successCount
+                ]
+            );
+
+            \Log::info('Notification sent successfully:', ['recipients' => $successCount]);
+            
+            return redirect()->route('admin.notifications')
+                ->with('success', "Alert sent successfully to {$successCount} users!");
+
+        } catch (\Exception $e) {
+            \Log::error('Error sending notification:', ['error' => $e->getMessage()]);
+            
+            return redirect()->route('admin.notifications')
+                ->with('error', 'Failed to send alert: ' . $e->getMessage());
+        }
+    }
 }
