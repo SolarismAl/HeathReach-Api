@@ -805,10 +805,26 @@ class WebHealthWorkerController extends Controller
                     // Use firebase_uid as the ID for consistency
                     $patientId = $userData['firebase_uid'] ?? $userId;
                     
+                    // Handle both 'name' field and 'first_name'/'last_name' fields
+                    $fullName = $userData['name'] ?? '';
+                    $firstName = $userData['first_name'] ?? '';
+                    $lastName = $userData['last_name'] ?? '';
+                    
+                    // If we have a full name but no first/last, split it
+                    if ($fullName && !$firstName && !$lastName) {
+                        $nameParts = explode(' ', $fullName, 2);
+                        $firstName = $nameParts[0] ?? 'Unknown';
+                        $lastName = $nameParts[1] ?? '';
+                    } elseif (!$firstName && !$lastName) {
+                        $firstName = 'Unknown';
+                        $lastName = 'User';
+                    }
+                    
                     $patients[] = [
                         'id' => $patientId,
-                        'first_name' => $userData['first_name'] ?? 'Unknown',
-                        'last_name' => $userData['last_name'] ?? 'User',
+                        'first_name' => $firstName,
+                        'last_name' => $lastName,
+                        'full_name' => $fullName ?: "$firstName $lastName",
                         'email' => $userData['email'] ?? 'No email',
                         'phone' => $userData['contact_number'] ?? $userData['phone'] ?? 'No phone'
                     ];

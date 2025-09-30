@@ -322,7 +322,9 @@ async function loadPatients() {
                 data.patients.forEach(patient => {
                     const option = document.createElement('option');
                     option.value = patient.id;
-                    option.textContent = `${patient.first_name} ${patient.last_name} (${patient.email})`;
+                    // Use full_name if available, otherwise combine first and last
+                    const displayName = patient.full_name || `${patient.first_name} ${patient.last_name}`.trim();
+                    option.textContent = `${displayName} (${patient.email})`;
                     patientSelect.appendChild(option);
                 });
             } else {

@@ -235,10 +235,14 @@ class FirestoreService
     public function getUser(string $userId): array
     {
         try {
+            \Log::info('FirestoreService::getUser called with:', ['userId' => $userId]);
+            
+            // First, try to find by document ID
             $docRef = $this->firestore->collection('users')->document($userId);
             $document = $docRef->snapshot();
             
             if ($document->exists()) {
+                \Log::info('User found by document ID:', ['doc_id' => $userId]);
                 $data = $document->data();
                 
                 // Map Firestore data to DTO expected format
@@ -261,10 +265,46 @@ class FirestoreService
                 
                 $userData = UserData::fromArray($mappedData);
                 return ['success' => true, 'data' => $userData];
-            } else {
-                return ['success' => false, 'error' => 'User not found'];
             }
+            
+            // If not found by document ID, try to find by firebase_uid
+            \Log::info('User not found by document ID, searching by firebase_uid:', ['firebase_uid' => $userId]);
+            $collection = $this->firestore->collection('users');
+            $query = $collection->where('firebase_uid', '=', $userId);
+            $documents = $query->documents();
+            
+            foreach ($documents as $doc) {
+                if ($doc->exists()) {
+                    \Log::info('User found by firebase_uid:', ['doc_id' => $doc->id(), 'firebase_uid' => $userId]);
+                    $data = $doc->data();
+                    
+                    // Map Firestore data to DTO expected format
+                    $mappedData = [
+                        'user_id' => $doc->id(),
+                        'firebase_uid' => $data['firebase_uid'] ?? $userId,
+                        'name' => $data['name'] ?? '',
+                        'email' => $data['email'] ?? '',
+                        'contact_number' => $data['contact_number'] ?? $data['phone'] ?? '',
+                        'role' => $data['role'] ?? 'patient',
+                        'profile_picture' => $data['profile_picture'] ?? null,
+                        'date_of_birth' => $data['date_of_birth'] ?? null,
+                        'gender' => $data['gender'] ?? null,
+                        'address' => $data['address'] ?? null,
+                        'emergency_contact' => $data['emergency_contact'] ?? null,
+                        'is_active' => $data['is_active'] ?? true,
+                        'created_at' => $data['created_at'] ?? null,
+                        'updated_at' => $data['updated_at'] ?? null,
+                    ];
+                    
+                    $userData = UserData::fromArray($mappedData);
+                    return ['success' => true, 'data' => $userData];
+                }
+            }
+            
+            \Log::warning('User not found by document ID or firebase_uid:', ['userId' => $userId]);
+            return ['success' => false, 'error' => 'User not found'];
         } catch (Exception $e) {
+            \Log::error('Error in getUser:', ['userId' => $userId, 'error' => $e->getMessage()]);
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
