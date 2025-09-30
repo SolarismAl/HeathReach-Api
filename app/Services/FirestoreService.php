@@ -303,7 +303,7 @@ class FirestoreService
             
             \Log::warning('User not found by document ID or firebase_uid:', ['userId' => $userId]);
             return ['success' => false, 'error' => 'User not found'];
-        } catch (Exception $e) {
+        } catch (\Exception $e) {
             \Log::error('Error in getUser:', ['userId' => $userId, 'error' => $e->getMessage()]);
             return ['success' => false, 'error' => $e->getMessage()];
         }
