@@ -623,22 +623,45 @@ class FirestoreService
     public function getNotificationsByUser(string $userId): array
     {
         try {
+            \Log::info('=== FIRESTORE: getNotificationsByUser ===');
+            \Log::info('Querying notifications for user_id:', ['user_id' => $userId]);
+            
             $collection = $this->firestore->collection('notifications');
             $query = $collection->where('user_id', '=', $userId);
             $documents = $query->documents();
             
+            \Log::info('Query executed, processing documents...');
+            
             $notifications = [];
+            $processedCount = 0;
+            $skippedCount = 0;
+            
             foreach ($documents as $document) {
                 if ($document->exists()) {
                     $data = $document->data();
+                    $processedCount++;
+                    
+                    \Log::info('Processing notification document:', [
+                        'doc_id' => $document->id(),
+                        'user_id' => $data['user_id'] ?? 'NOT SET',
+                        'title' => $data['title'] ?? 'NOT SET',
+                        'has_message' => isset($data['message'])
+                    ]);
                     
                     // Skip placeholder documents
                     if (isset($data['placeholder']) && $data['placeholder'] === true) {
+                        $skippedCount++;
                         continue;
                     }
                     
                     // Only process documents that have the required notification fields
                     if (!isset($data['title']) || !isset($data['message'])) {
+                        \Log::warning('Skipping notification - missing title or message:', [
+                            'doc_id' => $document->id(),
+                            'has_title' => isset($data['title']),
+                            'has_message' => isset($data['message'])
+                        ]);
+                        $skippedCount++;
                         continue;
                     }
                     
@@ -658,8 +681,20 @@ class FirestoreService
                 }
             }
             
+            \Log::info('Notification query complete:', [
+                'user_id' => $userId,
+                'total_processed' => $processedCount,
+                'skipped' => $skippedCount,
+                'returned' => count($notifications)
+            ]);
+            
             return ['success' => true, 'data' => $notifications];
         } catch (Exception $e) {
+            \Log::error('Error in getNotificationsByUser:', [
+                'user_id' => $userId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }

@@ -50,9 +50,13 @@
                             <option value="">Choose a user...</option>
                             @if(isset($users))
                                 @foreach($users as $userId => $user)
-                                    <option value="{{ $user['firebase_uid'] ?? $userId }}" {{ old('user_id') == ($user['firebase_uid'] ?? $userId) ? 'selected' : '' }}>
-                                        {{ $user['name'] ?? $user['email'] ?? 'Unknown User' }} 
-                                        ({{ ucfirst($user['role'] ?? 'patient') }})
+                                    @php
+                                        $displayName = $user['name'] ?? $user['email'] ?? 'User';
+                                        $userRole = ucfirst($user['role'] ?? 'patient');
+                                        $userIdentifier = $user['firebase_uid'] ?? $userId;
+                                    @endphp
+                                    <option value="{{ $userIdentifier }}" {{ old('user_id') == $userIdentifier ? 'selected' : '' }}>
+                                        {{ $displayName }} ({{ $userRole }}) - ID: {{ substr($userIdentifier, 0, 8) }}...
                                     </option>
                                 @endforeach
                             @endif
@@ -60,6 +64,7 @@
                         @error('user_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
+                        <div class="form-text">Select the specific user to send the notification to</div>
                     </div>
 
                     <!-- Notification Type -->

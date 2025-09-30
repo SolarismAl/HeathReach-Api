@@ -42,7 +42,9 @@ class NotificationController extends Controller
             $userId = $user['user_id'] ?? $user['firebase_uid'] ?? null;
             $userRole = $user['role'] ?? 'patient';
             
-            \Log::info('NotificationController::index - User:', ['user_id' => $userId, 'role' => $userRole]);
+            \Log::info('=== NOTIFICATION INDEX REQUEST ===');
+            \Log::info('Full user object from middleware:', $user);
+            \Log::info('Extracted user_id:', ['user_id' => $userId, 'role' => $userRole]);
 
             // Admins can see all notifications, others see only their own
             if ($userRole === 'admin' && $request->has('all')) {
@@ -52,7 +54,11 @@ class NotificationController extends Controller
             } else {
                 \Log::info('Fetching notifications for specific user:', ['user_id' => $userId]);
                 $result = $this->firestoreService->getNotificationsByUser($userId);
-                \Log::info('Notification query result:', ['success' => $result['success'], 'count' => count($result['data'] ?? [])]);
+                \Log::info('Notification query result:', [
+                    'success' => $result['success'], 
+                    'count' => count($result['data'] ?? []),
+                    'sample_notification' => !empty($result['data']) ? $result['data'][0] : null
+                ]);
             }
 
             if (!$result['success']) {
