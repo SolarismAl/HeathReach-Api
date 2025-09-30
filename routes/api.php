@@ -186,15 +186,90 @@ Route::get('test/real-notifications', function() {
     try {
         $firestoreService = app(\App\Services\FirestoreService::class);
         $result = $firestoreService->getAllNotifications();
-        return response()->json($result);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Real notifications test',
+            'data' => $result,
+            'timestamp' => now()
+        ]);
     } catch (\Exception $e) {
-        return response()->json(['success' => false, 'error' => $e->getMessage()], 500);
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'timestamp' => now()
+        ]);
+    }
+});
+
+Route::get('test/debug-notifications/{userId}', function($userId) {
+    try {
+        $firestoreService = app(\App\Services\FirestoreService::class);
+        
+        // Get user data
+        $userResult = $firestoreService->getUser($userId);
+        
+        // Get notifications for this user
+        $notificationsResult = $firestoreService->getNotificationsByUser($userId);
+        
+        // Get all notifications to see what exists
+        $allNotificationsResult = $firestoreService->getAllNotifications();
+        
+        return response()->json([
+            'success' => true,
+            'user_id' => $userId,
+            'user_data' => $userResult,
+            'user_notifications' => $notificationsResult,
+            'all_notifications_count' => count($allNotificationsResult['data'] ?? []),
+            'all_notifications_sample' => array_slice($allNotificationsResult['data'] ?? [], 0, 3),
+            'timestamp' => now()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'timestamp' => now()
+        ]);
+    }
+});
+
+Route::post('test/create-test-notification/{userId}', function($userId) {
+    try {
+        $firestoreService = app(\App\Services\FirestoreService::class);
+        
+        // Create a test notification for this user
+        $notificationData = [
+            'notification_id' => \Illuminate\Support\Str::uuid()->toString(),
+            'user_id' => $userId,
+            'title' => 'Test Notification',
+            'message' => 'This is a test notification created at ' . now()->toDateTimeString(),
+            'date_sent' => now()->toISOString(),
+            'is_read' => false,
+            'type' => 'general',
+            'created_at' => now()->toISOString(),
+            'updated_at' => now()->toISOString(),
+        ];
+        
+        $result = $firestoreService->createDocument('notifications', $notificationData);
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Test notification created',
+            'notification_data' => $notificationData,
+            'create_result' => $result,
+            'timestamp' => now()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'timestamp' => now()
+        ]);
     }
 });
 
 // Authentication routes using Firebase
 Route::prefix('auth')->group(function () {
-    Route::post('register', [FirebaseAuthController::class, 'register']);
     Route::post('login', [FirebaseAuthController::class, 'login']);
     Route::post('firebase-login', [CustomAuthController::class, 'firebaseLogin']); // Custom auth bypass
     Route::post('google', [FirebaseAuthController::class, 'googleLogin']);

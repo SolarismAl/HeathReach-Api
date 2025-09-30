@@ -536,7 +536,10 @@ class WebAdminController extends Controller
             'active_users' => count($this->firestoreService->getCollection('users'))
         ];
         
-        return view('admin.notifications', compact('stats'));
+        // Get all users for individual selection
+        $users = $this->firestoreService->getCollection('users');
+        
+        return view('admin.notifications', compact('stats', 'users'));
     }
 
     public function sendNotification(Request $request)
@@ -545,7 +548,8 @@ class WebAdminController extends Controller
         \Log::info('Request data:', $request->all());
         
         $request->validate([
-            'recipient' => 'required|in:all,patients,health_workers',
+            'recipient' => 'required|in:all,patients,health_workers,individual',
+            'user_id' => 'required_if:recipient,individual|string',
             'type' => 'required|in:admin,general,appointment,service',
             'title' => 'required|string|max:100',
             'message' => 'required|string|max:500',
@@ -566,30 +570,37 @@ class WebAdminController extends Controller
             ];
 
             // Determine recipients based on selection
-            $users = $this->firestoreService->getCollection('users');
             $recipients = [];
 
-            \Log::info('Processing users for notification recipients:', ['total_users' => count($users)]);
+            if ($request->recipient === 'individual') {
+                // Send to specific user
+                $recipients[] = $request->user_id;
+                \Log::info('Sending notification to individual user:', ['user_id' => $request->user_id]);
+            } else {
+                // Send to multiple users based on role
+                $users = $this->firestoreService->getCollection('users');
+                \Log::info('Processing users for notification recipients:', ['total_users' => count($users)]);
 
-            foreach ($users as $userId => $userData) {
-                $userRole = $userData['role'] ?? 'patient';
-                
-                \Log::info('Processing user:', [
-                    'user_id' => $userId,
-                    'role' => $userRole,
-                    'firebase_uid' => $userData['firebase_uid'] ?? 'not_set',
-                    'email' => $userData['email'] ?? 'no_email'
-                ]);
-                
-                // Use firebase_uid if available, otherwise fall back to document ID
-                $targetUserId = $userData['firebase_uid'] ?? $userId;
-                
-                if ($request->recipient === 'all') {
-                    $recipients[] = $targetUserId;
-                } elseif ($request->recipient === 'patients' && $userRole === 'patient') {
-                    $recipients[] = $targetUserId;
-                } elseif ($request->recipient === 'health_workers' && $userRole === 'health_worker') {
-                    $recipients[] = $targetUserId;
+                foreach ($users as $userId => $userData) {
+                    $userRole = $userData['role'] ?? 'patient';
+                    
+                    \Log::info('Processing user:', [
+                        'user_id' => $userId,
+                        'role' => $userRole,
+                        'firebase_uid' => $userData['firebase_uid'] ?? 'not_set',
+                        'email' => $userData['email'] ?? 'no_email'
+                    ]);
+                    
+                    // Use firebase_uid if available, otherwise fall back to document ID
+                    $targetUserId = $userData['firebase_uid'] ?? $userId;
+                    
+                    if ($request->recipient === 'all') {
+                        $recipients[] = $targetUserId;
+                    } elseif ($request->recipient === 'patients' && $userRole === 'patient') {
+                        $recipients[] = $targetUserId;
+                    } elseif ($request->recipient === 'health_workers' && $userRole === 'health_worker') {
+                        $recipients[] = $targetUserId;
+                    }
                 }
             }
 
@@ -629,8 +640,12 @@ class WebAdminController extends Controller
 
             \Log::info('Notification sent successfully:', ['recipients' => $successCount]);
             
+            $message = $request->recipient === 'individual' 
+                ? "Alert sent successfully to 1 user!" 
+                : "Alert sent successfully to {$successCount} users!";
+            
             return redirect()->route('admin.notifications')
-                ->with('success', "Alert sent successfully to {$successCount} users!");
+                ->with('success', $message);
 
         } catch (\Exception $e) {
             \Log::error('Error sending notification:', ['error' => $e->getMessage()]);

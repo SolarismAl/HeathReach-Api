@@ -31,13 +31,33 @@
                     <!-- Recipient Selection -->
                     <div class="mb-3">
                         <label for="recipient" class="form-label">Send To</label>
-                        <select class="form-select @error('recipient') is-invalid @enderror" id="recipient" name="recipient" required>
+                        <select class="form-select @error('recipient') is-invalid @enderror" id="recipient" name="recipient" required onchange="toggleUserSelection()">
                             <option value="">Select Recipients</option>
                             <option value="all" {{ old('recipient') == 'all' ? 'selected' : '' }}>All Users</option>
                             <option value="patients" {{ old('recipient') == 'patients' ? 'selected' : '' }}>Patients Only</option>
                             <option value="health_workers" {{ old('recipient') == 'health_workers' ? 'selected' : '' }}>Health Workers Only</option>
+                            <option value="individual" {{ old('recipient') == 'individual' ? 'selected' : '' }}>Individual User</option>
                         </select>
                         @error('recipient')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <!-- Individual User Selection (Hidden by default) -->
+                    <div class="mb-3" id="userSelectionDiv" style="display: none;">
+                        <label for="user_id" class="form-label">Select User</label>
+                        <select class="form-select @error('user_id') is-invalid @enderror" id="user_id" name="user_id">
+                            <option value="">Choose a user...</option>
+                            @if(isset($users))
+                                @foreach($users as $userId => $user)
+                                    <option value="{{ $user['firebase_uid'] ?? $userId }}" {{ old('user_id') == ($user['firebase_uid'] ?? $userId) ? 'selected' : '' }}>
+                                        {{ $user['name'] ?? $user['email'] ?? 'Unknown User' }} 
+                                        ({{ ucfirst($user['role'] ?? 'patient') }})
+                                    </option>
+                                @endforeach
+                            @endif
+                        </select>
+                        @error('user_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
                     </div>
@@ -115,7 +135,6 @@
         </div>
     </div>
 
-{{ ... }}
     <div class="col-md-4">
         <!-- Preview Card -->
         <div class="card">
@@ -283,6 +302,22 @@ document.getElementById('type').addEventListener('change', function() {
             iconElement.style.background = '#667eea';
     }
 });
+
+// Toggle user selection visibility
+function toggleUserSelection() {
+    const recipientSelect = document.getElementById('recipient');
+    const userSelectionDiv = document.getElementById('userSelectionDiv');
+    const userSelect = document.getElementById('user_id');
+    
+    if (recipientSelect.value === 'individual') {
+        userSelectionDiv.style.display = 'block';
+        userSelect.required = true;
+    } else {
+        userSelectionDiv.style.display = 'none';
+        userSelect.required = false;
+        userSelect.value = '';
+    }
+}
 
 // Template functionality
 function useTemplate(type) {
