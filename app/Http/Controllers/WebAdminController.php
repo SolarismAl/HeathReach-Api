@@ -620,24 +620,37 @@ class WebAdminController extends Controller
             // Send notification to each recipient
             $successCount = 0;
             foreach ($recipients as $userId) {
-                $notificationData['user_id'] = $userId;
-                $notificationData['recipient_role'] = $request->recipient === 'all' ? null : ($request->recipient === 'patients' ? 'patient' : ($request->recipient === 'health_workers' ? 'health_worker' : null));
-                
-                \Log::info('Creating notification for user:', [
+                // Create a unique notification for each user
+                $uniqueNotificationData = [
+                    'notification_id' => \Illuminate\Support\Str::uuid()->toString(),
                     'user_id' => $userId,
                     'title' => $notificationData['title'],
                     'message' => $notificationData['message'],
                     'type' => $notificationData['type'],
-                    'recipient_type' => $request->recipient,
-                    'full_notification_data' => $notificationData
+                    'priority' => $notificationData['priority'],
+                    'created_at' => now()->toISOString(),
+                    'is_read' => false,
+                    'sender_role' => $notificationData['sender_role'],
+                    'sender_id' => $notificationData['sender_id'],
+                    'recipient_role' => $request->recipient === 'all' ? null : ($request->recipient === 'patients' ? 'patient' : ($request->recipient === 'health_workers' ? 'health_worker' : null)),
+                    'updated_at' => now()->toISOString(),
+                ];
+                
+                \Log::info('Creating notification for user:', [
+                    'notification_id' => $uniqueNotificationData['notification_id'],
+                    'user_id' => $userId,
+                    'title' => $uniqueNotificationData['title'],
+                    'message' => $uniqueNotificationData['message'],
+                    'type' => $uniqueNotificationData['type'],
+                    'recipient_type' => $request->recipient
                 ]);
                 
-                $result = $this->firestoreService->createDocument('notifications', $notificationData);
+                $result = $this->firestoreService->createDocument('notifications', $uniqueNotificationData);
                 
                 \Log::info('Notification creation result:', [
                     'user_id' => $userId,
-                    'success' => $result ? 'true' : 'false',
-                    'result' => $result
+                    'notification_id' => $uniqueNotificationData['notification_id'],
+                    'success' => $result ? 'true' : 'false'
                 ]);
                 
                 if ($result) {

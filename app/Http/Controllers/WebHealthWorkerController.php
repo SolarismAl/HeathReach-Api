@@ -667,11 +667,32 @@ class WebHealthWorkerController extends Controller
             $recipients = [];
 
             if ($request->recipient === 'specific_patient') {
-                // Send to specific patient
-                $recipients[] = $request->patient_id;
-                \Log::info('Sending to specific patient:', [
-                    'patient_id' => $request->patient_id,
-                    'recipients_count' => 1
+                // Send to specific patient ONLY
+                $targetPatientId = $request->patient_id;
+                
+                \Log::info('=== SPECIFIC PATIENT SELECTED ===');
+                \Log::info('Selected patient_id from form:', ['patient_id' => $targetPatientId]);
+                
+                // Verify patient exists
+                $patientCheck = $this->firestoreService->getUser($targetPatientId);
+                if (!$patientCheck['success']) {
+                    \Log::error('Patient not found:', ['patient_id' => $targetPatientId]);
+                    return redirect()->route('health-worker.notifications')
+                        ->with('error', 'Patient not found. Please select a valid patient.');
+                }
+                
+                \Log::info('Patient verified:', [
+                    'patient_id' => $targetPatientId,
+                    'patient_name' => $patientCheck['data']->name ?? 'Unknown',
+                    'patient_email' => $patientCheck['data']->email ?? 'Unknown'
+                ]);
+                
+                // Add ONLY this patient to recipients
+                $recipients[] = $targetPatientId;
+                
+                \Log::info('Recipients array after adding specific patient:', [
+                    'recipients' => $recipients,
+                    'count' => count($recipients)
                 ]);
             } else {
                 // Get all users and filter patients
@@ -701,10 +722,41 @@ class WebHealthWorkerController extends Controller
             // Send notification to each recipient
             $successCount = 0;
             foreach ($recipients as $userId) {
-                $notificationData['user_id'] = $userId;
-                $notificationData['recipient_role'] = 'patient';
+                // Create a unique notification for each user
+                $uniqueNotificationData = [
+                    'notification_id' => \Illuminate\Support\Str::uuid()->toString(),
+                    'user_id' => $userId,
+                    'title' => $notificationData['title'],
+                    'message' => $notificationData['message'],
+                    'type' => $notificationData['type'],
+                    'priority' => $notificationData['priority'],
+                    'created_at' => now()->toISOString(),
+                    'updated_at' => now()->toISOString(),
+                    'is_read' => false,
+                    'sender_role' => $notificationData['sender_role'],
+                    'sender_id' => $notificationData['sender_id'],
+                    'recipient_role' => 'patient',
+                ];
                 
-                $result = $this->firestoreService->createDocument('notifications', $notificationData);
+                // Add health center data if exists
+                if (isset($notificationData['data'])) {
+                    $uniqueNotificationData['data'] = $notificationData['data'];
+                }
+                
+                \Log::info('Creating notification for patient:', [
+                    'notification_id' => $uniqueNotificationData['notification_id'],
+                    'user_id' => $userId,
+                    'title' => $uniqueNotificationData['title']
+                ]);
+                
+                $result = $this->firestoreService->createDocument('notifications', $uniqueNotificationData);
+                
+                \Log::info('Notification creation result:', [
+                    'notification_id' => $uniqueNotificationData['notification_id'],
+                    'user_id' => $userId,
+                    'success' => $result ? 'true' : 'false'
+                ]);
+                
                 if ($result) {
                     $successCount++;
                 }

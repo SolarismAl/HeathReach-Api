@@ -268,6 +268,47 @@ Route::post('test/create-test-notification/{userId}', function($userId) {
     }
 });
 
+Route::get('test/view-logs', function() {
+    try {
+        $logPath = storage_path('logs/laravel.log');
+        
+        if (!file_exists($logPath)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Log file not found',
+                'path' => $logPath
+            ]);
+        }
+        
+        // Get last 200 lines of log
+        $lines = [];
+        $file = new \SplFileObject($logPath, 'r');
+        $file->seek(PHP_INT_MAX);
+        $lastLine = $file->key();
+        $startLine = max(0, $lastLine - 200);
+        
+        $file->seek($startLine);
+        while (!$file->eof()) {
+            $lines[] = $file->current();
+            $file->next();
+        }
+        
+        return response()->json([
+            'success' => true,
+            'total_lines' => $lastLine + 1,
+            'showing_lines' => count($lines),
+            'logs' => implode('', $lines),
+            'timestamp' => now()
+        ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage(),
+            'timestamp' => now()
+        ]);
+    }
+});
+
 // Authentication routes using Firebase
 Route::prefix('auth')->group(function () {
     Route::post('login', [FirebaseAuthController::class, 'login']);
