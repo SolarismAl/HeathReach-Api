@@ -689,7 +689,14 @@ class WebHealthWorkerController extends Controller
                 
                 // Use the user_id from the verified patient data to ensure consistency
                 $verifiedUserId = $patientCheck['data']->user_id ?? $patientCheck['data']->firebase_uid ?? $targetPatientId;
-                \Log::info('Using verified user ID for notification:', ['verified_user_id' => $verifiedUserId]);
+                
+                // Ensure the user ID is always a string
+                $verifiedUserId = (string) $verifiedUserId;
+                
+                \Log::info('Using verified user ID for notification:', [
+                    'verified_user_id' => $verifiedUserId,
+                    'user_id_type' => gettype($verifiedUserId)
+                ]);
                 
                 // Add ONLY this patient to recipients
                 $recipients[] = $verifiedUserId;
@@ -709,11 +716,27 @@ class WebHealthWorkerController extends Controller
                         // Prioritize user_id, then firebase_uid, then document ID for consistency
                         $targetUserId = $userData['user_id'] ?? $userData['firebase_uid'] ?? $userId;
                         
+                        // Ensure the user ID is always a string and not empty
+                        $targetUserId = (string) $targetUserId;
+                        
+                        // Skip if user ID is empty or invalid
+                        if (empty($targetUserId) || $targetUserId === '0') {
+                            \Log::warning('Skipping patient with invalid user ID:', [
+                                'document_id' => $userId,
+                                'user_id' => $userData['user_id'] ?? 'NOT_SET',
+                                'firebase_uid' => $userData['firebase_uid'] ?? 'NOT_SET',
+                                'name' => $userData['name'] ?? 'Unknown'
+                            ]);
+                            continue;
+                        }
+                        
                         \Log::info('Processing patient for bulk notification:', [
                             'document_id' => $userId,
                             'user_id' => $userData['user_id'] ?? 'NOT_SET',
                             'firebase_uid' => $userData['firebase_uid'] ?? 'NOT_SET',
                             'selected_target_id' => $targetUserId,
+                            'target_id_type' => gettype($targetUserId),
+                            'target_id_length' => strlen($targetUserId),
                             'name' => $userData['name'] ?? 'Unknown'
                         ]);
                         
@@ -745,6 +768,15 @@ class WebHealthWorkerController extends Controller
             // Send notification to each recipient
             $successCount = 0;
             foreach ($recipients as $userId) {
+                // Ensure user ID is string (extra safety check)
+                $userId = (string) $userId;
+                
+                \Log::info('Creating notification for user:', [
+                    'user_id' => $userId,
+                    'user_id_type' => gettype($userId),
+                    'user_id_length' => strlen($userId)
+                ]);
+                
                 // Create a unique notification for each user
                 $uniqueNotificationData = [
                     'notification_id' => \Illuminate\Support\Str::uuid()->toString(),
