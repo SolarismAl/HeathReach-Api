@@ -215,21 +215,91 @@ Route::get('test/debug-notifications/{userId}', function($userId) {
         // Get all notifications to see what exists
         $allNotificationsResult = $firestoreService->getAllNotifications();
         
+        // Get all notifications and check user_id patterns
+        $userIdPatterns = [];
+        foreach ($allNotificationsResult['data'] ?? [] as $notification) {
+            $storedUserId = $notification->user_id ?? 'NO_USER_ID';
+            if (!isset($userIdPatterns[$storedUserId])) {
+                $userIdPatterns[$storedUserId] = 0;
+            }
+            $userIdPatterns[$storedUserId]++;
+        }
+        
         return response()->json([
             'success' => true,
-            'user_id' => $userId,
+            'query_user_id' => $userId,
             'user_data' => $userResult,
             'user_notifications' => $notificationsResult,
             'all_notifications_count' => count($allNotificationsResult['data'] ?? []),
             'all_notifications_sample' => array_slice($allNotificationsResult['data'] ?? [], 0, 3),
+            'user_id_patterns_in_notifications' => $userIdPatterns,
             'timestamp' => now()
         ]);
     } catch (\Exception $e) {
         return response()->json([
             'success' => false,
-            'error' => $e->getMessage(),
+            'error' => $e->getMessage()
+        ], 500);
+    }
+});
+
+Route::post('test/verify-notification-targeting', function() {
+    try {
+        $firestoreService = app(\App\Services\FirestoreService::class);
+        
+        // Get all users
+        $users = $firestoreService->getCollection('users');
+        $patients = [];
+        
+        foreach ($users as $userId => $userData) {
+            if (($userData['role'] ?? 'patient') === 'patient') {
+                $patients[] = [
+                    'document_id' => $userId,
+                    'user_id' => $userData['user_id'] ?? 'NOT_SET',
+                    'firebase_uid' => $userData['firebase_uid'] ?? 'NOT_SET',
+                    'name' => $userData['name'] ?? 'Unknown',
+                    'email' => $userData['email'] ?? 'Unknown'
+                ];
+            }
+        }
+        
+        // Get all notifications
+        $allNotifications = $firestoreService->getAllNotifications();
+        
+        // Group notifications by user_id
+        $notificationsByUser = [];
+        foreach ($allNotifications['data'] ?? [] as $notification) {
+            $userId = $notification->user_id ?? 'NO_USER_ID';
+            if (!isset($notificationsByUser[$userId])) {
+                $notificationsByUser[$userId] = [];
+            }
+            $notificationsByUser[$userId][] = [
+                'title' => $notification->title ?? 'No title',
+                'message' => substr($notification->message ?? 'No message', 0, 50) . '...',
+                'created_at' => $notification->created_at ?? 'Unknown'
+            ];
+        }
+        
+        return response()->json([
+            'success' => true,
+            'message' => 'Notification targeting verification',
+            'data' => [
+                'total_patients' => count($patients),
+                'patients' => $patients,
+                'total_notifications' => count($allNotifications['data'] ?? []),
+                'notifications_by_user' => $notificationsByUser,
+                'targeting_summary' => [
+                    'patients_with_notifications' => count($notificationsByUser),
+                    'patients_without_notifications' => count($patients) - count($notificationsByUser)
+                ]
+            ],
             'timestamp' => now()
         ]);
+    } catch (\Exception $e) {
+        return response()->json([
+            'success' => false,
+            'error' => $e->getMessage()
+        ], 500);
     }
 });
 

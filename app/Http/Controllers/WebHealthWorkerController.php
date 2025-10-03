@@ -687,8 +687,12 @@ class WebHealthWorkerController extends Controller
                     'patient_email' => $patientCheck['data']->email ?? 'Unknown'
                 ]);
                 
+                // Use the user_id from the verified patient data to ensure consistency
+                $verifiedUserId = $patientCheck['data']->user_id ?? $patientCheck['data']->firebase_uid ?? $targetPatientId;
+                \Log::info('Using verified user ID for notification:', ['verified_user_id' => $verifiedUserId]);
+                
                 // Add ONLY this patient to recipients
-                $recipients[] = $targetPatientId;
+                $recipients[] = $verifiedUserId;
                 
                 \Log::info('Recipients array after adding specific patient:', [
                     'recipients' => $recipients,
@@ -702,8 +706,16 @@ class WebHealthWorkerController extends Controller
                     $userRole = $userData['role'] ?? 'patient';
                     
                     if ($userRole === 'patient') {
-                        // Use firebase_uid if available, otherwise fall back to document ID
-                        $targetUserId = $userData['firebase_uid'] ?? $userId;
+                        // Prioritize user_id, then firebase_uid, then document ID for consistency
+                        $targetUserId = $userData['user_id'] ?? $userData['firebase_uid'] ?? $userId;
+                        
+                        \Log::info('Processing patient for bulk notification:', [
+                            'document_id' => $userId,
+                            'user_id' => $userData['user_id'] ?? 'NOT_SET',
+                            'firebase_uid' => $userData['firebase_uid'] ?? 'NOT_SET',
+                            'selected_target_id' => $targetUserId,
+                            'name' => $userData['name'] ?? 'Unknown'
+                        ]);
                         
                         if ($request->recipient === 'patients') {
                             // Send to all patients
@@ -717,7 +729,18 @@ class WebHealthWorkerController extends Controller
                 }
             }
 
-            \Log::info('Sending notification to recipients:', ['count' => count($recipients), 'type' => $request->recipient]);
+            \Log::info('=== FINAL RECIPIENT SUMMARY ===');
+            \Log::info('Notification type:', ['recipient_type' => $request->recipient]);
+            \Log::info('Total recipients found:', ['count' => count($recipients)]);
+            \Log::info('Recipient list:', ['recipients' => $recipients]);
+            
+            if ($request->recipient === 'specific_patient') {
+                \Log::info('✅ SPECIFIC PATIENT MODE: Sending to 1 patient only');
+            } elseif ($request->recipient === 'patients') {
+                \Log::info('✅ ALL PATIENTS MODE: Sending to all patients in system');
+            } elseif ($request->recipient === 'my_patients') {
+                \Log::info('✅ MY PATIENTS MODE: Sending to health worker\'s patients');
+            }
 
             // Send notification to each recipient
             $successCount = 0;

@@ -53,8 +53,31 @@ class NotificationController extends Controller
                 \Log::info('Fetching ALL notifications for admin');
             } else {
                 \Log::info('Fetching notifications for specific user:', ['user_id' => $userId]);
+                
+                // Try multiple user ID formats to handle inconsistencies
                 $result = $this->firestoreService->getNotificationsByUser($userId);
-                \Log::info('Notification query result:', [
+                \Log::info('Primary notification query result:', [
+                    'success' => $result['success'], 
+                    'count' => count($result['data'] ?? []),
+                    'query_user_id' => $userId
+                ]);
+                
+                // If no results and we have both user_id and firebase_uid, try the other format
+                if (empty($result['data']) && isset($user['user_id']) && isset($user['firebase_uid']) && $user['user_id'] !== $user['firebase_uid']) {
+                    $alternateUserId = ($userId === $user['user_id']) ? $user['firebase_uid'] : $user['user_id'];
+                    \Log::info('Trying alternate user ID format:', ['alternate_user_id' => $alternateUserId]);
+                    
+                    $alternateResult = $this->firestoreService->getNotificationsByUser($alternateUserId);
+                    if (!empty($alternateResult['data'])) {
+                        \Log::info('Found notifications with alternate user ID:', [
+                            'alternate_user_id' => $alternateUserId,
+                            'count' => count($alternateResult['data'])
+                        ]);
+                        $result = $alternateResult;
+                    }
+                }
+                
+                \Log::info('Final notification query result:', [
                     'success' => $result['success'], 
                     'count' => count($result['data'] ?? []),
                     'sample_notification' => !empty($result['data']) ? $result['data'][0] : null
