@@ -125,7 +125,7 @@ class FirebaseService
                 if (strpos($e->getMessage(), 'audience') !== false || strpos($e->getMessage(), 'not allowed') !== false) {
                     \Log::info('FirebaseService: Standard verification failed, attempting custom verification');
                     
-                    // Decode the token manually to extract the UID
+                    // Decode the token manually to extract the UID and user info
                     $tokenParts = explode('.', $idToken);
                     if (count($tokenParts) === 3) {
                         $payload = json_decode(base64_decode(strtr($tokenParts[1], '-_', '+/')), true);
@@ -133,8 +133,22 @@ class FirebaseService
                         
                         if ($uid) {
                             \Log::info('FirebaseService: Extracted UID from token: ' . $uid);
-                            $user = $this->auth->getUser($uid);
-                            \Log::info('FirebaseService: Retrieved user data for UID: ' . $uid);
+                            
+                            // Try to get user from Firebase Auth, but don't fail if they don't exist
+                            try {
+                                $user = $this->auth->getUser($uid);
+                                \Log::info('FirebaseService: Retrieved user data for UID: ' . $uid);
+                            } catch (\Exception $getUserError) {
+                                \Log::info('FirebaseService: User not found in Firebase Auth, using token data');
+                                // Create a user object from token payload
+                                $user = (object)[
+                                    'uid' => $uid,
+                                    'email' => $payload['email'] ?? null,
+                                    'displayName' => $payload['name'] ?? null,
+                                    'emailVerified' => $payload['email_verified'] ?? false,
+                                    'photoURL' => $payload['picture'] ?? null,
+                                ];
+                            }
                             
                             return [
                                 'success' => true,
@@ -151,8 +165,20 @@ class FirebaseService
             $uid = $verifiedIdToken->claims()->get('sub');
             \Log::info('FirebaseService: Extracted UID: ' . $uid);
             
-            $user = $this->auth->getUser($uid);
-            \Log::info('FirebaseService: Retrieved user data for UID: ' . $uid);
+            // Try to get user from Firebase Auth, but don't fail if they don't exist
+            try {
+                $user = $this->auth->getUser($uid);
+                \Log::info('FirebaseService: Retrieved user data for UID: ' . $uid);
+            } catch (\Exception $getUserError) {
+                \Log::info('FirebaseService: User not found in Firebase Auth, will be created later');
+                // Return minimal user data from token
+                $user = (object)[
+                    'uid' => $uid,
+                    'email' => $verifiedIdToken->claims()->get('email'),
+                    'displayName' => $verifiedIdToken->claims()->get('name'),
+                    'emailVerified' => $verifiedIdToken->claims()->get('email_verified', false),
+                ];
+            }
 
             return [
                 'success' => true,
