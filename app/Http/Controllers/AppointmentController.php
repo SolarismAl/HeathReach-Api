@@ -109,10 +109,15 @@ class AppointmentController extends Controller
             $userRole = $user['role'] ?? 'patient';
             $requestedUserId = $request->input('user_id');
             
+            \Log::info('=== APPOINTMENT CREATION DEBUG ===');
             \Log::info('User from middleware: ' . json_encode($user));
-            \Log::info('Current User ID: ' . $currentUserId);
+            \Log::info('User keys: ' . json_encode(array_keys($user ?? [])));
+            \Log::info('Current User ID (from user_id field): ' . ($user['user_id'] ?? 'NOT_FOUND'));
+            \Log::info('Current User ID (from firebase_uid field): ' . ($user['firebase_uid'] ?? 'NOT_FOUND'));
+            \Log::info('Final Current User ID: ' . $currentUserId);
             \Log::info('User Role: ' . $userRole);
             \Log::info('Requested User ID: ' . $requestedUserId);
+            \Log::info('IDs match: ' . ($currentUserId === $requestedUserId ? 'YES' : 'NO'));
 
             // Check if user can create appointment for this user
             if ($userRole === 'patient' && $currentUserId !== $requestedUserId) {
