@@ -381,6 +381,7 @@ Route::get('test/view-logs', function() {
 
 // Authentication routes using Firebase
 Route::prefix('auth')->group(function () {
+    Route::post('register', [FirebaseAuthController::class, 'register']);
     Route::post('login', [FirebaseAuthController::class, 'login']);
     Route::post('firebase-login', [CustomAuthController::class, 'firebaseLogin']); // Custom auth bypass
     Route::post('google', [FirebaseAuthController::class, 'googleLogin']);
