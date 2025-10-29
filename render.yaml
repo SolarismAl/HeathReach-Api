@@ -14,7 +14,7 @@ services:
       - key: APP_DEBUG
         value: false
       - key: APP_URL
-        value: https://healthreach-api.onrender.com
+        value: https://healthreach-apiv2.onrender.com
       - key: GOOGLE_APPLICATION_CREDENTIALS
         value: /run/secrets/firebase-service-account.json
 
