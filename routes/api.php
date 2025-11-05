@@ -383,6 +383,7 @@ Route::get('test/view-logs', function() {
 Route::prefix('auth')->group(function () {
     Route::post('register', [FirebaseAuthController::class, 'register']);
     Route::post('login', [FirebaseAuthController::class, 'login']);
+    Route::post('login-with-password', [FirebaseAuthController::class, 'loginWithPassword']); // Backend-first auth (bypasses frontend Firebase issues)
     Route::post('firebase-login', [CustomAuthController::class, 'firebaseLogin']); // Custom auth bypass
     Route::post('google', [FirebaseAuthController::class, 'googleLogin']);
     Route::post('logout', [FirebaseAuthController::class, 'logout'])->middleware('firebase.auth');

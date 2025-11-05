@@ -197,6 +197,60 @@ class FirebaseService
     }
 
     /**
+     * Verify user credentials using Firebase REST API
+     * This allows backend to authenticate users without requiring frontend Firebase Auth
+     */
+    public function verifyPassword(string $email, string $password): array
+    {
+        try {
+            \Log::info('FirebaseService: Verifying password for email: ' . $email);
+            
+            $apiKey = config('firebase.api_key');
+            if (!$apiKey) {
+                throw new \Exception('Firebase API key not configured');
+            }
+            
+            // Use Firebase REST API to verify credentials
+            $url = "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={$apiKey}";
+            
+            $response = \Http::timeout(10)->post($url, [
+                'email' => $email,
+                'password' => $password,
+                'returnSecureToken' => true
+            ]);
+            
+            if ($response->successful()) {
+                $data = $response->json();
+                \Log::info('FirebaseService: Password verification successful for UID: ' . $data['localId']);
+                
+                return [
+                    'success' => true,
+                    'uid' => $data['localId'],
+                    'email' => $data['email'],
+                    'idToken' => $data['idToken'],
+                    'refreshToken' => $data['refreshToken']
+                ];
+            }
+            
+            $errorData = $response->json();
+            $errorMessage = $errorData['error']['message'] ?? 'Invalid credentials';
+            \Log::error('FirebaseService: Password verification failed: ' . $errorMessage);
+            
+            return [
+                'success' => false,
+                'error' => $errorMessage
+            ];
+            
+        } catch (\Exception $e) {
+            \Log::error('FirebaseService: Password verification exception: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
+    /**
      * Send push notification via FCM
      */
     public function sendNotification(string $token, string $title, string $body, ?array $data = null): array

@@ -227,6 +227,147 @@ class FirebaseAuthController extends Controller
     }
 
     /**
+     * Login with email and password (backend handles Firebase)
+     * This bypasses frontend Firebase Auth issues in React Native production builds
+     */
+    public function loginWithPassword(Request $request): JsonResponse
+    {
+        \Log::info('=== LOGIN WITH PASSWORD REQUEST ===');
+        \Log::info('Email: ' . $request->email);
+        
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|string|email',
+            'password' => 'required|string',
+        ]);
+
+        if ($validator->fails()) {
+            \Log::error('Login validation failed:', $validator->errors()->toArray());
+            return response()->json([
+                'success' => false,
+                'message' => 'Validation failed',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Verify credentials with Firebase
+            \Log::info('Verifying credentials with Firebase');
+            $firebaseResult = $this->firebaseService->verifyPassword(
+                $request->email,
+                $request->password
+            );
+
+            if (!$firebaseResult['success']) {
+                \Log::error('Firebase authentication failed');
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Invalid email or password'
+                ], 401);
+            }
+
+            $firebaseUid = $firebaseResult['uid'];
+            \Log::info('Firebase authentication successful, UID: ' . $firebaseUid);
+
+            // Get user from Firestore
+            $user = $this->firestoreService->findByField('users', 'firebase_uid', $firebaseUid);
+
+            if (!$user) {
+                \Log::error('User not found in Firestore for Firebase UID: ' . $firebaseUid);
+                
+                // Try to create Firestore profile for existing Firebase user
+                try {
+                    $firebaseUser = $this->firebaseService->getAuth()->getUser($firebaseUid);
+                    if ($firebaseUser) {
+                        \Log::info('Creating missing Firestore profile');
+                        $userId = 'user-' . Str::uuid();
+                        $userData = [
+                            'user_id' => $userId,
+                            'firebase_uid' => $firebaseUid,
+                            'name' => $firebaseUser->displayName ?? 'User',
+                            'email' => $firebaseUser->email,
+                            'role' => 'patient',
+                            'contact_number' => null,
+                            'address' => null,
+                            'fcm_token' => null,
+                            'email_verified_at' => $firebaseUser->emailVerified ? now()->toISOString() : null,
+                            'is_active' => true,
+                            'created_at' => now()->toISOString(),
+                            'updated_at' => now()->toISOString()
+                        ];
+                        
+                        $documentId = $this->firestoreService->createDocument('users', $userData, $userId);
+                        if ($documentId) {
+                            $user = $userData;
+                            \Log::info('Successfully created Firestore profile');
+                        }
+                    }
+                } catch (\Exception $e) {
+                    \Log::error('Failed to create Firestore profile: ' . $e->getMessage());
+                }
+                
+                if (!$user) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'User profile not found'
+                    ], 404);
+                }
+            }
+
+            // Generate custom token for API access
+            $customToken = $this->firebaseService->createCustomToken($firebaseUid, [
+                'user_id' => $user['user_id'],
+                'role' => $user['role']
+            ]);
+
+            // Update FCM token if provided
+            if ($request->has('fcm_token')) {
+                $this->firestoreService->updateDocument('users', $user['user_id'], [
+                    'fcm_token' => $request->fcm_token
+                ]);
+                $user['fcm_token'] = $request->fcm_token;
+            }
+
+            // Log activity
+            $this->activityLogService->log(
+                $user['user_id'],
+                'user_login',
+                'User logged in successfully (backend auth)',
+                $request->ip(),
+                $request->userAgent()
+            );
+
+            \Log::info('Login successful');
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Login successful',
+                'data' => [
+                    'user' => [
+                        'user_id' => $user['user_id'],
+                        'name' => $user['name'],
+                        'email' => $user['email'],
+                        'role' => $user['role'],
+                        'contact_number' => $user['contact_number'] ?? null,
+                        'address' => $user['address'] ?? null
+                    ],
+                    'token' => $customToken,
+                    'firebase_token' => $firebaseResult['idToken'] // Optional: for Firebase features
+                ]
+            ]);
+
+        } catch (Exception $e) {
+            \Log::error('Login exception:', [
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return response()->json([
+                'success' => false,
+                'message' => 'Login failed: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Login user with Firebase ID token
      */
     public function login(Request $request): JsonResponse
