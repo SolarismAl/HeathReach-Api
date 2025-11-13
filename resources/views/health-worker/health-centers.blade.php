@@ -218,47 +218,4 @@ console.log('=== END HEALTH CENTERS BLADE ===');
         </div>
     </div>
 </div>
-
-<!-- Statistics Cards -->
-<div class="row">
-    <div class="col-md-3">
-        <div class="card stats-card-success">
-            <div class="card-body text-center">
-                <i class="fas fa-check-circle fa-2x mb-2"></i>
-                <h3>{{ collect($healthCenters)->where('is_active', true)->count() }}</h3>
-                <p class="mb-0">Active Centers</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card stats-card-secondary">
-            <div class="card-body text-center">
-                <i class="fas fa-pause-circle fa-2x mb-2"></i>
-                <h3>{{ collect($healthCenters)->where('is_active', false)->count() }}</h3>
-                <p class="mb-0">Inactive Centers</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card stats-card-info">
-            <div class="card-body text-center">
-                <i class="fas fa-stethoscope fa-2x mb-2"></i>
-                <h3>{{ collect($healthCenters)->sum(function($center) { return isset($center['services']) && is_array($center['services']) ? count($center['services']) : 0; }) }}</h3>
-                <p class="mb-0">Total Services</p>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-3">
-        <div class="card stats-card-primary">
-            <div class="card-body text-center">
-                <i class="fas fa-clock fa-2x mb-2"></i>
-                <h3>{{ collect($healthCenters)->filter(function($center) { 
-                    $today = strtolower(date('l'));
-                    return isset($center['operating_hours'][$today]) && $center['operating_hours'][$today] !== 'Closed';
-                })->count() }}</h3>
-                <p class="mb-0">Open Today</p>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection

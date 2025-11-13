@@ -161,7 +161,7 @@ console.log('=== END APPOINTMENTS BLADE ===');
                                                         </small>
                                                     @endif
                                                 </div>
-                                                <div class="modal-footer">
+                                                <!-- <div class="modal-footer">
                                                     @if($appointment['status'] === 'pending')
                                                         <form method="POST" action="{{ route('admin.appointments.update-status', $appointmentId) }}" style="display: inline;">
                                                             @csrf
@@ -198,7 +198,7 @@ console.log('=== END APPOINTMENTS BLADE ===');
                                                         </form>
                                                     @endif
                                                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                                </div>
+                                                </div> -->
                                             </div>
                                         </div>
                                     </div>
@@ -218,46 +218,4 @@ console.log('=== END APPOINTMENTS BLADE ===');
     </div>
 </div>
 
-<!-- Statistics Cards -->
-<div class="row">
-    <div class="col-md-3 mb-3">
-        <div class="card stats-card-warning">
-            <div class="card-body text-center">
-                <i class="fas fa-clock fa-2x mb-2"></i>
-                <h3>{{ collect($appointments)->where('status', 'pending')->count() }}</h3>
-                <p class="mb-0">Pending</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card stats-card-info">
-            <div class="card-body text-center">
-                <i class="fas fa-check-circle fa-2x mb-2"></i>
-                <h3>{{ collect($appointments)->where('status', 'confirmed')->count() }}</h3>
-                <p class="mb-0">Confirmed</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card stats-card-success">
-            <div class="card-body text-center">
-                <i class="fas fa-check-double fa-2x mb-2"></i>
-                <h3>{{ collect($appointments)->where('status', 'completed')->count() }}</h3>
-                <p class="mb-0">Completed</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card bg-danger text-white">
-            <div class="card-body text-center">
-                <i class="fas fa-times-circle fa-2x mb-2"></i>
-                <h3>{{ collect($appointments)->where('status', 'cancelled')->count() }}</h3>
-                <p class="mb-0">Cancelled</p>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection

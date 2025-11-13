@@ -170,46 +170,4 @@
     </div>
 </div>
 
-<!-- Activity Summary Cards -->
-<div class="row">
-    <div class="col-md-3 mb-3">
-        <div class="card stats-card-success">
-            <div class="card-body text-center">
-                <i class="fas fa-sign-in-alt fa-2x mb-2"></i>
-                <h3>{{ collect($logs)->where('action', 'login')->count() }}</h3>
-                <p class="mb-0">Logins</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card stats-card-info">
-            <div class="card-body text-center">
-                <i class="fas fa-plus fa-2x mb-2"></i>
-                <h3>{{ collect($logs)->filter(function($log) { return str_contains($log['action'] ?? '', 'created'); })->count() }}</h3>
-                <p class="mb-0">Created</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card stats-card-warning">
-            <div class="card-body text-center">
-                <i class="fas fa-edit fa-2x mb-2"></i>
-                <h3>{{ collect($logs)->filter(function($log) { return str_contains($log['action'] ?? '', 'updated'); })->count() }}</h3>
-                <p class="mb-0">Updated</p>
-            </div>
-        </div>
-    </div>
-    
-    <div class="col-md-3 mb-3">
-        <div class="card bg-danger text-white">
-            <div class="card-body text-center">
-                <i class="fas fa-trash fa-2x mb-2"></i>
-                <h3>{{ collect($logs)->filter(function($log) { return str_contains($log['action'] ?? '', 'deleted'); })->count() }}</h3>
-                <p class="mb-0">Deleted</p>
-            </div>
-        </div>
-    </div>
-</div>
 @endsection

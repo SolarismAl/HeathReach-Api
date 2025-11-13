@@ -155,7 +155,18 @@ console.log('=== END HEALTH WORKER APPOINTMENTS BLADE ===');
                                                         <div class="col-md-6">
                                                             <h6>Appointment Information</h6>
                                                             <p><strong>Service:</strong> {{ $appointment['service_name'] ?? 'N/A' }}</p>
-                                                            <p><strong>Date:</strong> {{ isset($appointment['appointment_date']) ? date('M d, Y h:i A', strtotime($appointment['appointment_date'])) : 'N/A' }}</p>
+                                                                <p>
+                                                            <strong>Date:</strong>
+                                                            @if(isset($appointment['date']) && isset($appointment['time']))
+                                                                <strong>{{ date('M d, Y', strtotime($appointment['date'])) }}</strong>
+                                                                <small class="text-muted">({{ date('h:i A', strtotime($appointment['time'])) }})</small>
+                                                            @elseif(isset($appointment['appointment_date']))
+                                                                <strong>{{ date('M d, Y', strtotime($appointment['appointment_date'])) }}</strong>
+                                                                <small class="text-muted">({{ date('h:i A', strtotime($appointment['appointment_date'])) }})</small>
+                                                            @else
+                                                                <span class="text-muted">N/A</span>
+                                                            @endif
+                                                        </p>
                                                             <p><strong>Status:</strong> 
                                                                 @php
                                                                     $hwModalStatus = $appointment['status'] ?? 'pending';
