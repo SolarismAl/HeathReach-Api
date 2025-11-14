@@ -10,8 +10,8 @@
             <div class="card-header d-flex justify-content-between align-items-center">
                 <h5><i class="fas fa-users me-2"></i>All Users</h5>
                 <div>
-                    <form method="GET" class="d-inline-flex">
-                        <select name="role" class="form-select form-select-sm me-2" onchange="this.form.submit()">
+                    <form method="GET" class="d-inline-flex" id="userRoleFilterForm">
+                        <select name="role" class="form-select form-select-sm me-2" onchange="handleUserRoleFilterChange(this)">
                             <option value="">All Roles</option>
                             <option value="admin" {{ request('role') === 'admin' ? 'selected' : '' }}>Admin</option>
                             <option value="health_worker" {{ request('role') === 'health_worker' ? 'selected' : '' }}>Health Worker</option>
@@ -155,6 +155,16 @@
                                                             <span class="badge bg-{{ $modalBadgeClass }}">
                                                                 {{ ucfirst($modalRole) }}
                                                             </span>
+                                                            @if($modalRole !== 'admin')
+                                                                <div class="mt-2">
+                                                                    <select class="form-select form-select-sm user-role-select" data-user-id="{{ $userId }}" id="roleSelect{{ $userId }}">
+                                                                        <option value="patient" @if($modalRole === 'patient') selected @endif>Patient</option>
+                                                                        <option value="health_worker" @if($modalRole === 'health_worker') selected @endif>Health Worker</option>
+                                                                    </select>
+                                                                    <button type="button" class="btn btn-primary btn-sm mt-2" onclick="updateUserRole('{{ $userId }}')">Save Role</button>
+                                                                    <div id="roleUpdateStatus{{ $userId }}" class="mt-2"></div>
+                                                                </div>
+                                                            @endif
                                                         </div>
                                                     </div>
                                                     @if(isset($user['address']))
@@ -213,6 +223,46 @@ function confirmDelete(userId, userName) {
     document.getElementById('deleteUserName').textContent = userName;
     document.getElementById('deleteForm').action = `/admin/users/${userId}`;
     new bootstrap.Modal(document.getElementById('deleteModal')).show();
+}
+
+// Role dropdown filter handler: remove ?role= if All Roles selected
+function handleUserRoleFilterChange(select) {
+    const form = document.getElementById('userRoleFilterForm');
+    if(select.value === '') {
+        // Reload with no query string
+        window.location = window.location.pathname;
+    } else {
+        form.submit();
+    }
+}
+
+// Role updating logic
+function updateUserRole(userId) {
+    const selectElem = document.getElementById('roleSelect' + userId);
+    const newRole = selectElem.value;
+    const statusElem = document.getElementById('roleUpdateStatus' + userId);
+    statusElem.innerHTML = '<span class="text-info">Updating...</span>';
+
+    fetch(`/admin/users/${userId}/role`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+        },
+        body: JSON.stringify({ role: newRole })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            statusElem.innerHTML = '<span class="text-success">Role updated!</span>';
+            setTimeout(() => { location.reload(); }, 1500);
+        } else {
+            statusElem.innerHTML = '<span class="text-danger">'+ (data.message || 'Update failed') +'</span>';
+        }
+    })
+    .catch(error => {
+        statusElem.innerHTML = '<span class="text-danger">Network Error</span>';
+    });
 }
 </script>
 @endsection

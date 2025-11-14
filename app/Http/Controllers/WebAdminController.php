@@ -63,12 +63,28 @@ class WebAdminController extends Controller
 
     public function users(Request $request)
     {
-        $filters = [];
+        $users = [];
         if ($request->has('role') && $request->role !== '') {
-            $filters['role'] = $request->role;
+            // Use the correct queryCollection method to filter by role
+            $users = $this->firestoreService->queryCollection('users', [
+                ['role', '==', $request->role]
+            ]);
+            // Re-index by document_id for use in Blade:
+            if (!empty($users)) {
+                $users = collect($users)->mapWithKeys(function($u) {
+                    return [($u['document_id'] ?? uniqid('doc')) => $u];
+                })->toArray();
+            }
+        } else {
+            $users = $this->firestoreService->getCollection('users');
+            // Re-index by Firestore document ID for Blade and add document_id key
+            if (!empty($users)) {
+                $users = collect($users)->mapWithKeys(function($user, $docId) {
+                    $user['document_id'] = $docId;
+                    return [$docId => $user];
+                })->toArray();
+            }
         }
-
-        $users = $this->firestoreService->getCollection('users', $filters);
         return view('admin.users', compact('users'));
     }
 
@@ -686,6 +702,72 @@ class WebAdminController extends Controller
             
             return redirect()->route('admin.notifications')
                 ->with('error', 'Failed to send alert: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * AJAX endpoint: Update a user's role (admin only, cannot change admin accounts)
+     */
+    public function updateUserRole(Request $request, $id)
+    {
+        try {
+            $admin = session('user');
+            if (!$admin || ($admin['role'] ?? '') !== 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Unauthorized',
+                ], 403);
+            }
+
+            // Validate incoming role value
+            $validated = $request->validate([
+                'role' => 'required|string|in:patient,health_worker',
+            ]);
+
+            // Get user doc
+            $user = $this->firestoreService->getDocument('users', $id);
+            if (!$user) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'User not found',
+                ], 404);
+            }
+            if (($user['role'] ?? 'patient') === 'admin') {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Cannot change admin role',
+                ], 403);
+            }
+
+            // Update role
+            $result = $this->firestoreService->updateDocument('users', $id, [
+                'role' => $validated['role'],
+                'updated_at' => now()->toISOString(),
+            ]);
+            if (!$result) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Failed to update role',
+                ], 500);
+            }
+
+            // Log activity
+            $this->activityLogService->log(
+                $admin['firebase_uid'] ?? 'admin',
+                'user_role_updated',
+                "Updated role of user $id to {$validated['role']}"
+            );
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Role updated!',
+                'role' => $validated['role'],
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => $e->getMessage(),
+            ], 500);
         }
     }
 }

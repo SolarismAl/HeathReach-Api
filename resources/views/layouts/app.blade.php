@@ -319,12 +319,16 @@
             <div class="col-md-10 main-content p-4">
                 <!-- Top Navigation -->
                 <nav class="navbar navbar-expand-lg navbar-light bg-white rounded mb-4">
-                    <div class="container-fluid">
-                        <button class="btn btn-link mobile-menu-btn me-2 d-none" onclick="toggleSidebar()" style="color: #667eea;">
-                            <i class="fas fa-bars"></i>
-                        </button>
-                        <span class="navbar-brand">@yield('page-title', 'Dashboard')</span>
-                        <div class="navbar-nav ms-auto">
+                    <div class="container-fluid d-flex justify-content-between align-items-center">
+                        <div class="d-flex align-items-center">
+                            <button class="btn btn-link mobile-menu-btn me-2 d-lg-none" 
+                                    onclick="toggleSidebar()" 
+                                    style="color: #667eea;">
+                                <i class="fas fa-bars"></i>
+                            </button>
+                            <span class="navbar-brand mb-0">@yield('page-title', 'Dashboard')</span>
+                        </div>
+                        <div class="navbar-nav d-flex align-items-center">
                             <span class="nav-text">
                                 <i class="fas fa-clock me-1"></i>
                                 {{ now()->format('M d, Y - h:i A') }}

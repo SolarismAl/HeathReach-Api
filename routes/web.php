@@ -34,6 +34,7 @@ Route::middleware(['web.auth:admin'])->prefix('admin')->name('admin.')->group(fu
     // Users Management
     Route::get('/users', [WebAdminController::class, 'users'])->name('users');
     Route::delete('/users/{id}', [WebAdminController::class, 'deleteUser'])->name('users.delete');
+    Route::put('/users/{id}/role', [WebAdminController::class, 'updateUserRole'])->name('users.role');
     
     // Health Centers Management
     Route::get('/health-centers', [WebAdminController::class, 'healthCenters'])->name('health-centers');
