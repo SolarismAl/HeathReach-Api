@@ -8,29 +8,185 @@
 console.log('=== APPOINTMENTS BLADE TEMPLATE ===');
 console.log('Appointments Data:', @json($appointments));
 console.log('Appointments Count:', Object.keys(@json($appointments)).length);
-console.log('Appointments Keys:', Object.keys(@json($appointments)));
-
-// Log each appointment in detail
-const appointments = @json($appointments);
-Object.keys(appointments).forEach(appointmentId => {
-    console.log('=== APPOINTMENT DETAILS ===');
-    console.log('Appointment ID:', appointmentId);
-    console.log('Appointment Data:', appointments[appointmentId]);
-    console.log('Patient Name:', appointments[appointmentId].patient_name);
-    console.log('Service Name:', appointments[appointmentId].service_name);
-    console.log('Health Center Name:', appointments[appointmentId].health_center_name);
-    console.log('Date:', appointments[appointmentId].date);
-    console.log('Time:', appointments[appointmentId].time);
-    console.log('Status:', appointments[appointmentId].status);
-});
-
-console.log('=== END APPOINTMENTS BLADE ===');
 </script>
+
+<!-- Statistics Cards -->
 <div class="row mb-4">
+    @php
+        $totalAppointments = count($appointments);
+        $pendingCount = 0;
+        $confirmedCount = 0;
+        $completedCount = 0;
+        $cancelledCount = 0;
+        $totalRevenue = 0;
+        
+        foreach($appointments as $appointment) {
+            $status = $appointment['status'] ?? 'pending';
+            switch($status) {
+                case 'pending':
+                    $pendingCount++;
+                    break;
+                case 'confirmed':
+                    $confirmedCount++;
+                    break;
+                case 'completed':
+                    $completedCount++;
+                    if(isset($appointment['service_price'])) {
+                        $totalRevenue += $appointment['service_price'];
+                    }
+                    break;
+                case 'cancelled':
+                    $cancelledCount++;
+                    break;
+            }
+        }
+    @endphp
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Appointments</p>
+                        <h3 class="mb-0">{{ $totalAppointments }}</h3>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 rounded p-3">
+                        <i class="fas fa-calendar-alt fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Pending</p>
+                        <h3 class="mb-0 text-warning">{{ $pendingCount }}</h3>
+                        <small class="text-muted">Awaiting confirmation</small>
+                    </div>
+                    <div class="bg-warning bg-opacity-10 rounded p-3">
+                        <i class="fas fa-clock fa-2x text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Confirmed</p>
+                        <h3 class="mb-0 text-info">{{ $confirmedCount }}</h3>
+                        <small class="text-muted">Upcoming appointments</small>
+                    </div>
+                    <div class="bg-info bg-opacity-10 rounded p-3">
+                        <i class="fas fa-check-circle fa-2x text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-3 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Completed</p>
+                        <h3 class="mb-0 text-success">{{ $completedCount }}</h3>
+                        <small class="text-muted">Successfully finished</small>
+                    </div>
+                    <div class="bg-success bg-opacity-10 rounded p-3">
+                        <i class="fas fa-check-double fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Additional Metrics Row -->
+<div class="row mb-4">
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Cancelled</p>
+                        <h3 class="mb-0 text-danger">{{ $cancelledCount }}</h3>
+                        <small class="text-muted">{{ $totalAppointments > 0 ? round(($cancelledCount / $totalAppointments) * 100, 1) : 0 }}% cancellation rate</small>
+                    </div>
+                    <div class="bg-danger bg-opacity-10 rounded p-3">
+                        <i class="fas fa-times-circle fa-2x text-danger"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Revenue</p>
+                        <h3 class="mb-0 text-success">₱{{ number_format($totalRevenue, 2) }}</h3>
+                        <small class="text-muted">From completed appointments</small>
+                    </div>
+                    <div class="bg-success bg-opacity-10 rounded p-3">
+                        <i class="fas fa-peso-sign fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-lg-4 col-md-6 mb-3">
+        <div class="card border-0 shadow-sm h-100">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Completion Rate</p>
+                        <h3 class="mb-0 text-primary">{{ $totalAppointments > 0 ? round(($completedCount / $totalAppointments) * 100, 1) : 0 }}%</h3>
+                        <small class="text-muted">{{ $completedCount }} of {{ $totalAppointments }} appointments</small>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 rounded p-3">
+                        <i class="fas fa-chart-line fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Appointments Table -->
+<div class="row">
     <div class="col-md-12">
         <div class="card">
-            <div class="card-header">
+            <div class="card-header d-flex justify-content-between align-items-center">
                 <h5><i class="fas fa-calendar-check me-2"></i>All Appointments</h5>
+                <div class="d-flex align-items-center" style="gap: 0.5rem;">
+                    <form method="GET" action="{{ route('admin.appointments') }}" class="d-flex align-items-center" style="gap: 0.5rem;" id="filterForm">
+                        <select name="status" class="form-select form-select-sm" style="min-width: 140px;" onchange="document.getElementById('filterForm').submit()">
+                            <option value="">All Status</option>
+                            <option value="pending" {{ request('status') == 'pending' ? 'selected' : '' }}>Pending</option>
+                            <option value="confirmed" {{ request('status') == 'confirmed' ? 'selected' : '' }}>Confirmed</option>
+                            <option value="completed" {{ request('status') == 'completed' ? 'selected' : '' }}>Completed</option>
+                            <option value="cancelled" {{ request('status') == 'cancelled' ? 'selected' : '' }}>Cancelled</option>
+                        </select>
+                        <input type="date" name="date" class="form-control form-control-sm" style="min-width: 150px;" value="{{ request('date') }}" onchange="document.getElementById('filterForm').submit()">
+                        @if(request('status') || request('date'))
+                            <a href="{{ route('admin.appointments') }}" class="btn btn-sm btn-outline-secondary" title="Clear filters">
+                                <i class="fas fa-times"></i>
+                            </a>
+                        @endif
+                    </form>
+                </div>
             </div>
             <div class="card-body">
                 @if(count($appointments) > 0)
@@ -161,44 +317,6 @@ console.log('=== END APPOINTMENTS BLADE ===');
                                                         </small>
                                                     @endif
                                                 </div>
-                                                <!-- <div class="modal-footer">
-                                                    @if($appointment['status'] === 'pending')
-                                                        <form method="POST" action="{{ route('admin.appointments.update-status', $appointmentId) }}" style="display: inline;">
-                                                            @csrf
-                                                            @method('PUT')
-                                                            <input type="hidden" name="status" value="confirmed">
-                                                            <button type="submit" class="btn btn-success btn-sm">
-                                                                <i class="fas fa-check"></i> Accept
-                                                            </button>
-                                                        </form>
-                                                        <form method="POST" action="{{ route('admin.appointments.update-status', $appointmentId) }}" style="display: inline;">
-                                                            @csrf
-                                                            @method('PUT')
-                                                            <input type="hidden" name="status" value="cancelled">
-                                                            <button type="submit" class="btn btn-danger btn-sm">
-                                                                <i class="fas fa-times"></i> Decline
-                                                            </button>
-                                                        </form>
-                                                    @elseif($appointment['status'] === 'confirmed')
-                                                        <form method="POST" action="{{ route('admin.appointments.update-status', $appointmentId) }}" style="display: inline;">
-                                                            @csrf
-                                                            @method('PUT')
-                                                            <input type="hidden" name="status" value="completed">
-                                                            <button type="submit" class="btn btn-info btn-sm">
-                                                                <i class="fas fa-check-circle"></i> Mark Complete
-                                                            </button>
-                                                        </form>
-                                                        <form method="POST" action="{{ route('admin.appointments.update-status', $appointmentId) }}" style="display: inline;">
-                                                            @csrf
-                                                            @method('PUT')
-                                                            <input type="hidden" name="status" value="cancelled">
-                                                            <button type="submit" class="btn btn-danger btn-sm">
-                                                                <i class="fas fa-times"></i> Cancel
-                                                            </button>
-                                                        </form>
-                                                    @endif
-                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                                                </div> -->
                                             </div>
                                         </div>
                                     </div>
@@ -210,7 +328,14 @@ console.log('=== END APPOINTMENTS BLADE ===');
                     <div class="text-center py-4">
                         <i class="fas fa-calendar-times fa-3x text-muted mb-3"></i>
                         <h5 class="text-muted">No appointments found</h5>
-                        <p class="text-muted">Appointments will appear here once patients start booking services.</p>
+                        <p class="text-muted">
+                            @if(request('status') || request('date'))
+                                Try adjusting your filters or 
+                                <a href="{{ route('admin.appointments') }}">view all appointments</a>.
+                            @else
+                                Appointments will appear here once patients start booking services.
+                            @endif
+                        </p>
                     </div>
                 @endif
             </div>

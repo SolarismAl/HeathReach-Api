@@ -253,44 +253,48 @@ class WebAdminController extends Controller
         return redirect()->route('admin.health-centers')->with('success', 'Health center deleted successfully.');
     }
 
-    public function appointments()
+    public function appointments(Request $request)
     {
         \Log::info('=== APPOINTMENTS MANAGEMENT PAGE LOADED ===');
+        \Log::info('Request filters:', [
+            'status' => $request->input('status'),
+            'date' => $request->input('date')
+        ]);
         
         try {
-            // Try using raw Firestore data first since it already has nested structure
-            $rawAppointments = $this->firestoreService->getCollection('appointments');
-            \Log::info('=== APPOINTMENTS RAW DATA ===');
-            \Log::info('Raw appointments from Firestore:', $rawAppointments);
-            \Log::info('Appointments count: ' . count($rawAppointments));
+            // Get filter parameters from request
+            $statusFilter = $request->input('status');
+            $dateFilter = $request->input('date');
+            
+            // Use the FirestoreService method with filters
+            $result = $this->firestoreService->getAllAppointments($statusFilter, $dateFilter);
+            
+            if (!$result['success']) {
+                \Log::error('Failed to fetch appointments:', ['error' => $result['error'] ?? 'Unknown error']);
+                $appointments = [];
+                return view('admin.appointments', compact('appointments'));
+            }
+            
+            $rawAppointments = $result['data'];
+            \Log::info('Filtered appointments received:', [
+                'count' => count($rawAppointments),
+                'status_filter' => $statusFilter ?? 'none',
+                'date_filter' => $dateFilter ?? 'none'
+            ]);
             
             $appointments = [];
-            foreach ($rawAppointments as $appointmentId => $appointmentData) {
-                \Log::info('=== PROCESSING APPOINTMENT ===');
-                \Log::info('Appointment ID: ' . $appointmentId);
-                \Log::info('Raw appointment data:', $appointmentData);
+            foreach ($rawAppointments as $appointmentObj) {
+                // Convert AppointmentData object to array
+                $appointmentData = $appointmentObj->toArray();
+                $appointmentId = $appointmentData['appointment_id'];
                 
-                // Log specific nested data
-                \Log::info('User data check:', [
-                    'user_exists' => isset($appointmentData['user']),
-                    'user_data' => $appointmentData['user'] ?? 'NOT SET',
-                    'user_name' => isset($appointmentData['user']['name']) ? $appointmentData['user']['name'] : 'NO NAME'
+                \Log::info('Processing appointment:', [
+                    'id' => $appointmentId,
+                    'status' => $appointmentData['status'] ?? 'N/A',
+                    'date' => $appointmentData['date'] ?? 'N/A'
                 ]);
                 
-                \Log::info('Health Center data check:', [
-                    'health_center_exists' => isset($appointmentData['health_center']),
-                    'health_center_data' => $appointmentData['health_center'] ?? 'NOT SET',
-                    'health_center_name' => isset($appointmentData['health_center']['name']) ? $appointmentData['health_center']['name'] : 'NO NAME'
-                ]);
-                
-                \Log::info('Service data check:', [
-                    'service_exists' => isset($appointmentData['service']),
-                    'service_data' => $appointmentData['service'] ?? 'NOT SET',
-                    'service_id' => $appointmentData['service_id'] ?? 'NO SERVICE ID',
-                    'service_name' => isset($appointmentData['service']['service_name']) ? $appointmentData['service']['service_name'] : 'NO SERVICE NAME'
-                ]);
-                
-                // Transform raw Firestore data to view format
+                // Transform to view format
                 $appointments[$appointmentId] = [
                     'appointment_id' => $appointmentId,
                     'user_id' => $appointmentData['user_id'] ?? '',
@@ -303,26 +307,37 @@ class WebAdminController extends Controller
                     'created_at' => $appointmentData['created_at'] ?? '',
                     'updated_at' => $appointmentData['updated_at'] ?? '',
                     
-                    // Extract nested data directly from Firestore
-                    'patient_name' => $this->getPatientName($appointmentData),
+                    // Extract nested user data
+                    'patient_name' => isset($appointmentData['user']['name']) ? $appointmentData['user']['name'] : 'N/A',
                     'patient_phone' => isset($appointmentData['user']['contact_number']) ? $appointmentData['user']['contact_number'] : (isset($appointmentData['user']['phone']) ? $appointmentData['user']['phone'] : null),
                     'patient_email' => isset($appointmentData['user']['email']) ? $appointmentData['user']['email'] : null,
                     
+                    // Extract nested health center data
                     'health_center_name' => isset($appointmentData['health_center']['name']) ? $appointmentData['health_center']['name'] : 'N/A',
                     'health_center_address' => isset($appointmentData['health_center']['address']) ? $appointmentData['health_center']['address'] : null,
                     
-                    'service_name' => $this->getServiceName($appointmentData),
-                    'service_price' => $this->getServicePrice($appointmentData),
-                    'service_duration' => $this->getServiceDuration($appointmentData),
+                    // Extract nested service data
+                    'service_name' => isset($appointmentData['service']['service_name']) ? $appointmentData['service']['service_name'] : 'N/A',
+                    'service_price' => isset($appointmentData['service']['price']) ? $appointmentData['service']['price'] : null,
+                    'service_duration' => isset($appointmentData['service']['duration_minutes']) ? $appointmentData['service']['duration_minutes'] : null,
                 ];
                 
-                \Log::info('Transformed raw appointment:', $appointments[$appointmentId]);
+                \Log::info('Transformed appointment:', $appointments[$appointmentId]);
             }
+            
+            \Log::info('Final appointments for view:', [
+                'count' => count($appointments),
+                'filtered_by_status' => $statusFilter ?? 'none',
+                'filtered_by_date' => $dateFilter ?? 'none'
+            ]);
             
             return view('admin.appointments', compact('appointments'));
             
         } catch (Exception $e) {
-            \Log::error('Error loading appointments:', ['error' => $e->getMessage()]);
+            \Log::error('Error loading appointments:', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
             $appointments = [];
             return view('admin.appointments', compact('appointments'));
         }

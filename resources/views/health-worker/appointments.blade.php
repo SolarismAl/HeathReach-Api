@@ -8,26 +8,103 @@
 console.log('=== HEALTH WORKER APPOINTMENTS BLADE TEMPLATE ===');
 console.log('Appointments Data:', @json($appointments));
 console.log('Appointments Count:', Object.keys(@json($appointments)).length);
-console.log('Appointments Keys:', Object.keys(@json($appointments)));
-
-// Log each appointment in detail
-const appointments = @json($appointments);
-Object.keys(appointments).forEach(appointmentId => {
-    console.log('=== HEALTH WORKER APPOINTMENT DETAILS ===');
-    console.log('Appointment ID:', appointmentId);
-    console.log('Appointment Data:', appointments[appointmentId]);
-    console.log('Patient Name:', appointments[appointmentId].patient_name);
-    console.log('Service Name:', appointments[appointmentId].service_name);
-    console.log('Health Center Name:', appointments[appointmentId].health_center_name);
-    console.log('Date:', appointments[appointmentId].date);
-    console.log('Time:', appointments[appointmentId].time);
-    console.log('Status:', appointments[appointmentId].status);
-    console.log('Remarks:', appointments[appointmentId].remarks);
-});
-
-console.log('=== END HEALTH WORKER APPOINTMENTS BLADE ===');
 </script>
+
+<!-- Statistics Cards -->
 <div class="row mb-4">
+    @php
+        $totalAppointments = count($appointments);
+        $pendingCount = 0;
+        $confirmedCount = 0;
+        $completedCount = 0;
+        $cancelledCount = 0;
+        
+        foreach($appointments as $appointment) {
+            $status = $appointment['status'] ?? 'pending';
+            switch($status) {
+                case 'pending':
+                    $pendingCount++;
+                    break;
+                case 'confirmed':
+                    $confirmedCount++;
+                    break;
+                case 'completed':
+                    $completedCount++;
+                    break;
+                case 'cancelled':
+                    $cancelledCount++;
+                    break;
+            }
+        }
+    @endphp
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Appointments</p>
+                        <h3 class="mb-0">{{ $totalAppointments }}</h3>
+                    </div>
+                    <div class="bg-primary bg-opacity-10 rounded p-3">
+                        <i class="fas fa-calendar-alt fa-2x text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Pending</p>
+                        <h3 class="mb-0 text-warning">{{ $pendingCount }}</h3>
+                    </div>
+                    <div class="bg-warning bg-opacity-10 rounded p-3">
+                        <i class="fas fa-clock fa-2x text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Confirmed</p>
+                        <h3 class="mb-0 text-info">{{ $confirmedCount }}</h3>
+                    </div>
+                    <div class="bg-info bg-opacity-10 rounded p-3">
+                        <i class="fas fa-check-circle fa-2x text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3 col-sm-6 mb-3">
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Completed</p>
+                        <h3 class="mb-0 text-success">{{ $completedCount }}</h3>
+                    </div>
+                    <div class="bg-success bg-opacity-10 rounded p-3">
+                        <i class="fas fa-check-double fa-2x text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Appointments Table -->
+<div class="row">
     <div class="col-md-12">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
@@ -155,18 +232,18 @@ console.log('=== END HEALTH WORKER APPOINTMENTS BLADE ===');
                                                         <div class="col-md-6">
                                                             <h6>Appointment Information</h6>
                                                             <p><strong>Service:</strong> {{ $appointment['service_name'] ?? 'N/A' }}</p>
-                                                                <p>
-                                                            <strong>Date:</strong>
-                                                            @if(isset($appointment['date']) && isset($appointment['time']))
-                                                                <strong>{{ date('M d, Y', strtotime($appointment['date'])) }}</strong>
-                                                                <small class="text-muted">({{ date('h:i A', strtotime($appointment['time'])) }})</small>
-                                                            @elseif(isset($appointment['appointment_date']))
-                                                                <strong>{{ date('M d, Y', strtotime($appointment['appointment_date'])) }}</strong>
-                                                                <small class="text-muted">({{ date('h:i A', strtotime($appointment['appointment_date'])) }})</small>
-                                                            @else
-                                                                <span class="text-muted">N/A</span>
-                                                            @endif
-                                                        </p>
+                                                            <p>
+                                                                <strong>Date:</strong>
+                                                                @if(isset($appointment['date']) && isset($appointment['time']))
+                                                                    {{ date('M d, Y', strtotime($appointment['date'])) }}
+                                                                    <small class="text-muted">({{ date('h:i A', strtotime($appointment['time'])) }})</small>
+                                                                @elseif(isset($appointment['appointment_date']))
+                                                                    {{ date('M d, Y', strtotime($appointment['appointment_date'])) }}
+                                                                    <small class="text-muted">({{ date('h:i A', strtotime($appointment['appointment_date'])) }})</small>
+                                                                @else
+                                                                    <span class="text-muted">N/A</span>
+                                                                @endif
+                                                            </p>
                                                             <p><strong>Status:</strong> 
                                                                 @php
                                                                     $hwModalStatus = $appointment['status'] ?? 'pending';
@@ -253,9 +330,6 @@ function updateStatus(appointmentId, status) {
     document.getElementById('statusInput').value = status;
     document.getElementById('statusForm').action = `/health-worker/appointments/${appointmentId}/status`;
     
-    console.log('Form action set to:', document.getElementById('statusForm').action);
-    console.log('Status input value set to:', document.getElementById('statusInput').value);
-    
     const actionText = status === 'confirmed' ? 'confirm' : (status === 'completed' ? 'complete' : 'cancel');
     document.getElementById('statusAction').textContent = actionText;
     document.getElementById('statusSubmit').textContent = `${actionText.charAt(0).toUpperCase() + actionText.slice(1)} Appointment`;
@@ -274,10 +348,6 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Form method:', this.method);
             console.log('Status value:', document.getElementById('statusInput').value);
             console.log('Notes value:', document.getElementById('notes').value);
-            console.log('Form data:', new FormData(this));
-            
-            // Let the form submit normally
-            console.log('Form submitting...');
         });
     }
 });

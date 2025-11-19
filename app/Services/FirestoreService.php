@@ -500,7 +500,7 @@ class FirestoreService
         }
     }
 
-    public function getAppointmentsByUser(string $userId, ?string $status = null): array
+    public function getAppointmentsByUser(string $userId, ?string $status = null, ?string $date = null): array
     {
         try {
             $collection = $this->firestore->collection('appointments');
@@ -521,8 +521,13 @@ class FirestoreService
                     $data = $document->data();
                     
                     // Get the date and time from the stored data
-                    $date = $data['date'] ?? '';
+                    $appointmentDate = $data['date'] ?? '';
                     $time = $data['time'] ?? '';
+                    
+                    // Apply date filter in PHP if provided
+                    if ($date && $appointmentDate !== $date) {
+                        continue; // Skip this appointment
+                    }
                     
                     // Get related data
                     $userData = null;
@@ -552,7 +557,7 @@ class FirestoreService
                         'user_id' => $data['user_id'] ?? '',
                         'health_center_id' => $data['health_center_id'] ?? '',
                         'service_id' => $data['service_id'] ?? '',
-                        'date' => $date,
+                        'date' => $appointmentDate,
                         'time' => $time,
                         'status' => $data['status'] ?? 'pending',
                         'remarks' => $data['remarks'] ?? null,
@@ -572,11 +577,23 @@ class FirestoreService
         }
     }
 
-    public function getAllAppointments(): array
+    public function getAllAppointments(?string $status = null, ?string $date = null): array
     {
         try {
             $collection = $this->firestore->collection('appointments');
-            $documents = $collection->documents();
+            
+            // Start with base query
+            $query = $collection;
+            
+            // Add status filter if provided
+            if ($status && $status !== 'all') {
+                $query = $query->where('status', '=', $status);
+                \Log::info('Filtering appointments by status:', ['status' => $status]);
+            }
+            
+            // Note: Firestore cannot filter by date directly in a where clause efficiently
+            // We'll fetch all (or status-filtered) appointments and filter by date in PHP
+            $documents = $query->documents();
             
             $appointments = [];
             foreach ($documents as $document) {
@@ -584,8 +601,17 @@ class FirestoreService
                     $data = $document->data();
                     
                     // Get the date and time from the stored data
-                    $date = $data['date'] ?? '';
+                    $appointmentDate = $data['date'] ?? '';
                     $time = $data['time'] ?? '';
+                    
+                    // Apply date filter in PHP if provided
+                    if ($date && $appointmentDate !== $date) {
+                        \Log::info('Skipping appointment - date mismatch:', [
+                            'appointment_date' => $appointmentDate,
+                            'filter_date' => $date
+                        ]);
+                        continue; // Skip this appointment
+                    }
                     
                     // Get related data
                     $userData = null;
@@ -615,7 +641,7 @@ class FirestoreService
                         'user_id' => $data['user_id'] ?? '',
                         'health_center_id' => $data['health_center_id'] ?? '',
                         'service_id' => $data['service_id'] ?? '',
-                        'date' => $date,
+                        'date' => $appointmentDate,
                         'time' => $time,
                         'status' => $data['status'] ?? 'pending',
                         'remarks' => $data['remarks'] ?? null,
@@ -629,8 +655,19 @@ class FirestoreService
                 }
             }
             
+            \Log::info('Appointments filtered successfully:', [
+                'total_returned' => count($appointments),
+                'status_filter' => $status ?? 'none',
+                'date_filter' => $date ?? 'none'
+            ]);
+            
             return ['success' => true, 'data' => $appointments];
         } catch (Exception $e) {
+            \Log::error('Error in getAllAppointments:', [
+                'error' => $e->getMessage(),
+                'status' => $status,
+                'date' => $date
+            ]);
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
